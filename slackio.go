@@ -2,6 +2,7 @@ package slackio
 
 import (
 	"errors"
+	"io"
 
 	"github.com/nlopes/slack"
 )
@@ -9,9 +10,9 @@ import (
 // slackIO is a ReadWriteCloser that reads from and writes to a Slack channel,
 // using the Slack real-time API. Reads and writes occur by line.
 type slackIO struct {
-	rtm    *slack.RTM
-	reader *rtmReader
-	writer *rtmWriter
+	reader     io.ReadCloser
+	writer     io.WriteCloser
+	disconnect func() error
 }
 
 func New(token, channel string) *slackIO {
@@ -20,9 +21,9 @@ func New(token, channel string) *slackIO {
 	go rtm.ManageConnection()
 
 	return &slackIO{
-		rtm:    rtm,
-		reader: newRTMReader(rtm, channel),
-		writer: newRTMWriter(rtm, channel),
+		reader:     newRTMReader(rtm, channel),
+		writer:     newRTMWriter(rtm, channel),
+		disconnect: rtm.Disconnect,
 	}
 }
 
@@ -39,7 +40,7 @@ func (s *slackIO) Close() error {
 	// phpjson thing.
 	err1 := s.reader.Close()
 	err2 := s.writer.Close()
-	err3 := s.rtm.Disconnect()
+	err3 := s.disconnect()
 	if err1 != nil || err2 != nil || err3 != nil {
 		return errors.New("slackio failed to close")
 	}
