@@ -16,7 +16,7 @@ import (
 type Client struct {
 	rtm          *slack.RTM
 	slackChannel string
-	close        chan bool
+	done         chan struct{}
 
 	readIn  io.WriteCloser
 	readOut io.ReadCloser
@@ -39,7 +39,7 @@ func New(token, channel string) *Client {
 	c := &Client{
 		rtm:          rtm,
 		slackChannel: channel,
-		close:        make(chan bool),
+		done:         make(chan struct{}),
 
 		readIn:  readIn,
 		readOut: readOut,
@@ -63,7 +63,7 @@ func (c *Client) init() {
 					c.processIncomingMessage(data)
 				}
 
-			case <-c.close:
+			case <-c.done:
 				return
 			}
 		}
@@ -121,7 +121,7 @@ func (c *Client) Write(p []byte) (int, error) {
 // buffers. After calling Close, the next call to Read will result in an EOF
 // and the next call to Write will result in an error.
 func (c *Client) Close() error {
-	c.close <- true
+	c.done <- struct{}{}
 
 	// Close the input of each pipe, so the next Read returns EOF. These are
 	// documented to always return nil - this assumption simplifies the
