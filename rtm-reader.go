@@ -49,12 +49,12 @@ func (r *rtmReader) processRTMStream() {
 	}
 }
 
-func (r *rtmReader) processMessageEvent(data *slack.MessageEvent) {
-	if data.Type != "message" || data.Channel != r.slackChannel || data.Text == "" {
+func (r *rtmReader) processMessageEvent(m *slack.MessageEvent) {
+	if m.Type != "message" || m.ReplyTo > 0 || m.Channel != r.slackChannel || m.Text == "" {
 		return
 	}
 
-	if _, err := r.pipeIn.Write(append([]byte(data.Text), byte('\n'))); err != nil {
+	if _, err := r.pipeIn.Write(append([]byte(m.Text), byte('\n'))); err != nil {
 		// TODO Consider other options for handling this
 		panic(err)
 	}
