@@ -105,29 +105,29 @@ func (c *Client) processIncomingMessage(m *slack.MessageEvent) {
 // threads), buffered by line. Single messages will be terminated with an
 // appended newline. Messages with explicit line breaks are equivalent to
 // multiple single messages in succession.
-func (s *Client) Read(p []byte) (int, error) {
-	return s.readOut.Read(p)
+func (c *Client) Read(p []byte) (int, error) {
+	return c.readOut.Read(p)
 }
 
 // Write submits one or more newline-delimited messages to the main body of a
 // Slack channel. Every line is sent as an individual message, and no batching
 // of any kind is performed (though this is under consideration as a potential
 // improvement).
-func (s *Client) Write(p []byte) (int, error) {
-	return s.writeIn.Write(p)
+func (c *Client) Write(p []byte) (int, error) {
+	return c.writeIn.Write(p)
 }
 
 // Close disconnects this Client from the real-time API and shuts down internal
 // buffers. After calling Close, the next call to Read will result in an EOF
 // and the next call to Write will result in an error.
-func (s *Client) Close() error {
-	s.close <- true
+func (c *Client) Close() error {
+	c.close <- true
 
 	// Close the input of each pipe, so the next Read returns EOF. These are
 	// documented to always return nil - this assumption simplifies the
 	// implementation of this method.
-	s.readIn.Close()
-	s.writeIn.Close()
+	c.readIn.Close()
+	c.writeIn.Close()
 
-	return s.rtm.Disconnect()
+	return c.rtm.Disconnect()
 }
