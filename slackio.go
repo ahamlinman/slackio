@@ -1,7 +1,6 @@
 package slackio
 
 import (
-	"errors"
 	"io"
 
 	"github.com/nlopes/slack"
@@ -36,13 +35,17 @@ func (s *slackIO) Write(p []byte) (int, error) {
 }
 
 func (s *slackIO) Close() error {
-	// TODO There has to be a better way to do this... something like Tyler's
-	// phpjson thing.
-	err1 := s.reader.Close()
-	err2 := s.writer.Close()
-	err3 := s.disconnect()
-	if err1 != nil || err2 != nil || err3 != nil {
-		return errors.New("slackio failed to close")
+	require := func(f func() error) {
+		if err := f(); err != nil {
+			panic(err)
+		}
+	}
+
+	require(s.reader.Close)
+	require(s.writer.Close)
+
+	if err := s.disconnect(); err != nil {
+		return err
 	}
 
 	return nil
