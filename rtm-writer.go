@@ -45,17 +45,14 @@ func (w *rtmWriter) processWrites() {
 		msg := w.rtm.NewOutgoingMessage(scanner.Text(), w.slackChannel)
 		w.rtm.SendMessage(msg)
 	}
+
+	if err := scanner.Err(); err != nil {
+		panic(err)
+	}
 }
 
 func (w *rtmWriter) Close() error {
-	require := func(f func() error) {
-		if err := f(); err != nil {
-			panic(err)
-		}
-	}
-
-	require(w.pipeIn.Close)
-	require(w.pipeOut.Close)
-
-	return nil
+	// Close the writer, so the scanner receives EOF and its goroutine
+	// terminates.
+	return w.pipeIn.Close()
 }

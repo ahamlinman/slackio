@@ -65,14 +65,8 @@ func (r *rtmReader) Read(p []byte) (int, error) {
 func (r *rtmReader) Close() error {
 	r.close <- true
 
-	require := func(f func() error) {
-		if err := f(); err != nil {
-			panic(err)
-		}
-	}
-
-	require(r.pipeIn.Close)
-	require(r.pipeOut.Close)
-
-	return nil
+	// Close the writer, so the next read receives EOF. In the case of
+	// slackbridge the reader is a goroutine in the "os/exec" package, which
+	// must terminate before a Cmd's "Wait" method can finish.
+	return r.pipeIn.Close()
 }
