@@ -1,3 +1,5 @@
+// Package slackio implements real-time communication with a single Slack
+// channel behind an io.ReadWriteCloser interface.
 package slackio
 
 import (
@@ -6,19 +8,19 @@ import (
 	"github.com/nlopes/slack"
 )
 
-// Client is a ReadWriteCloser that reads from and writes to a single Slack
-// channel using the Slack real-time API. In this model, the content of the
-// main channel is represented as lines of text. Concepts like threads,
-// reactions, and even the senders of individual messages are entirely ignored.
+// Client is a ReadWriteCloser for a single Slack channel, backed by the Slack
+// real-time API. The content of the channel's main body is represented as
+// lines of text. Concepts like users, threads, and reactions are entirely
+// ignored.
 type Client struct {
 	reader     io.ReadCloser
 	writer     io.WriteCloser
 	disconnect func() error
 }
 
-// New returns a SlackIO for the given channel that uses the given Slack API
-// token. channel must be an ID rather than a channel name. This ID can be
-// obtained from the URL path when viewing Slack on the web.
+// New returns a Client for the given channel that uses the given Slack API
+// token. Note that channel must be an ID rather than a channel name (this can
+// be obtained from the URL path when viewing Slack on the web).
 func New(token, channel string) *Client {
 	api := slack.New(token)
 	rtm := api.NewRTM()
