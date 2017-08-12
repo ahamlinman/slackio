@@ -3,6 +3,7 @@
 package slackio
 
 import (
+	"bufio"
 	"io"
 
 	"github.com/nlopes/slack"
@@ -20,7 +21,8 @@ type Client struct {
 	readIn  io.WriteCloser
 	readOut io.ReadCloser
 
-	writer io.WriteCloser
+	writeIn  io.WriteCloser
+	writeOut io.ReadCloser
 }
 
 // New returns a Client for the given channel that uses the given Slack API
@@ -32,6 +34,7 @@ func New(token, channel string) *Client {
 	go rtm.ManageConnection()
 
 	readOut, readIn := io.Pipe()
+	writeOut, writeIn := io.Pipe()
 
 	c := &Client{
 		rtm:          rtm,
@@ -41,7 +44,8 @@ func New(token, channel string) *Client {
 		readIn:  readIn,
 		readOut: readOut,
 
-		writer: newRTMWriter(rtm, channel),
+		writeIn:  writeIn,
+		writeOut: writeOut,
 	}
 	c.init()
 
@@ -62,6 +66,19 @@ func (c *Client) init() {
 			case <-c.close:
 				return
 			}
+		}
+	}()
+
+	// Process outgoing writes
+	go func() {
+		scanner := bufio.NewScanner(c.writeOut) // Breaks on newlines by default
+		for scanner.Scan() {
+			msg := c.rtm.NewOutgoingMessage(scanner.Text(), c.slackChannel)
+			c.rtm.SendMessage(msg)
+		}
+
+		if err := scanner.Err(); err != nil {
+			panic(err)
 		}
 	}()
 }
@@ -97,7 +114,7 @@ func (s *Client) Read(p []byte) (int, error) {
 // of any kind is performed (though this is under consideration as a potential
 // improvement).
 func (s *Client) Write(p []byte) (int, error) {
-	return s.writer.Write(p)
+	return s.writeIn.Write(p)
 }
 
 // Close disconnects this Client from the real-time API and shuts down internal
@@ -106,9 +123,11 @@ func (s *Client) Write(p []byte) (int, error) {
 func (s *Client) Close() error {
 	s.close <- true
 
-	// These always return nil. See their respective comments.
+	// Close the input of each pipe, so the next Read returns EOF. These are
+	// documented to always return nil - this assumption simplifies the
+	// implementation of this method.
 	s.readIn.Close()
-	s.writer.Close()
+	s.writeIn.Close()
 
 	return s.rtm.Disconnect()
 }
