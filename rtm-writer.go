@@ -2,7 +2,6 @@ package slackio
 
 import (
 	"bufio"
-	"errors"
 	"io"
 
 	"github.com/nlopes/slack"
@@ -49,12 +48,14 @@ func (w *rtmWriter) processWrites() {
 }
 
 func (w *rtmWriter) Close() error {
-	// TODO report this better
-	err1 := w.pipeIn.Close()
-	err2 := w.pipeOut.Close()
-	if err1 != nil || err2 != nil {
-		return errors.New("rtmWriter failed to close pipes")
+	require := func(f func() error) {
+		if err := f(); err != nil {
+			panic(err)
+		}
 	}
+
+	require(w.pipeIn.Close)
+	require(w.pipeOut.Close)
 
 	return nil
 }

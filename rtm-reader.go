@@ -1,7 +1,6 @@
 package slackio
 
 import (
-	"errors"
 	"io"
 
 	"github.com/nlopes/slack"
@@ -55,7 +54,6 @@ func (r *rtmReader) processMessageEvent(m *slack.MessageEvent) {
 	}
 
 	if _, err := r.pipeIn.Write(append([]byte(m.Text), byte('\n'))); err != nil {
-		// TODO Consider other options for handling this
 		panic(err)
 	}
 }
@@ -67,12 +65,14 @@ func (r *rtmReader) Read(p []byte) (int, error) {
 func (r *rtmReader) Close() error {
 	r.close <- true
 
-	// TODO report this better
-	err1 := r.pipeIn.Close()
-	err2 := r.pipeOut.Close()
-	if err1 != nil || err2 != nil {
-		return errors.New("rtmReader failed to close pipes")
+	require := func(f func() error) {
+		if err := f(); err != nil {
+			panic(err)
+		}
 	}
+
+	require(r.pipeIn.Close)
+	require(r.pipeOut.Close)
 
 	return nil
 }
