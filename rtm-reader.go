@@ -49,7 +49,11 @@ func (r *rtmReader) processRTMStream() {
 }
 
 func (r *rtmReader) processMessageEvent(m *slack.MessageEvent) {
-	if m.Type != "message" || m.ReplyTo > 0 || m.Channel != r.slackChannel || m.Text == "" {
+	if m.Type != "message" ||
+		m.ReplyTo > 0 ||
+		m.Channel != r.slackChannel ||
+		m.ThreadTimestamp != "" ||
+		m.Text == "" {
 		return
 	}
 
