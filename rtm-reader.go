@@ -7,8 +7,8 @@ import (
 )
 
 // rtmReader is a ReadCloser that reads from a Slack channel using the
-// real-time API. When a new line becomes available from a Slack message, a
-// trailing newline is appended and the text becomes available through the Read
+// real-time API. When a new message is received from Slack, a trailing newline
+// is appended and the resulting text becomes available through the Read
 // method.
 type rtmReader struct {
 	rtm          *slack.RTM
@@ -49,6 +49,9 @@ func (r *rtmReader) processRTMStream() {
 }
 
 func (r *rtmReader) processMessageEvent(m *slack.MessageEvent) {
+	// On the ReplyTo field: A message with this field is sent by Slack's RTM API
+	// when it thinks you have a flaky network connection. It's a copy of *your*
+	// previous message, so you can verify that it was sent properly.
 	if m.Type != "message" ||
 		m.ReplyTo > 0 ||
 		m.Channel != r.slackChannel ||
@@ -70,7 +73,10 @@ func (r *rtmReader) Close() error {
 	r.close <- true
 
 	// Close the writer, so the next read receives EOF. In the case of
-	// slackbridge the reader is a goroutine in the "os/exec" package, which
-	// must terminate before a Cmd's "Wait" method can finish.
-	return r.pipeIn.Close()
+	// slackbridge the reader is a goroutine in the "os/exec" package, which must
+	// terminate before a Cmd's "Wait" method can finish. This method is defined
+	// to always return nil.
+	r.pipeIn.Close()
+
+	return nil
 }

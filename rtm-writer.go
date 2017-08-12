@@ -35,12 +35,9 @@ func (w *rtmWriter) Write(p []byte) (int, error) {
 	return w.pipeIn.Write(p)
 }
 
-// processWrites runs as a goroutine to continually process newly-written data
-// and break it on newlines.
+// processWrites runs as a goroutine to continually process written data.
 func (w *rtmWriter) processWrites() {
-	// TODO This only writes after newline termination. Would it be better to
-	// write non-terminated input with some sort of debounce interval?
-	scanner := bufio.NewScanner(w.pipeOut)
+	scanner := bufio.NewScanner(w.pipeOut) // Breaks on newlines by default
 	for scanner.Scan() {
 		msg := w.rtm.NewOutgoingMessage(scanner.Text(), w.slackChannel)
 		w.rtm.SendMessage(msg)
@@ -53,6 +50,8 @@ func (w *rtmWriter) processWrites() {
 
 func (w *rtmWriter) Close() error {
 	// Close the writer, so the scanner receives EOF and its goroutine
-	// terminates.
-	return w.pipeIn.Close()
+	// terminates. This method is defined to always return nil.
+	w.pipeIn.Close()
+
+	return nil
 }
