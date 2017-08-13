@@ -55,6 +55,7 @@ func (c *Client) init() {
 	// Process incoming reads
 	c.wg.Add(1)
 	go func() {
+		defer c.wg.Done()
 		for {
 			select {
 			case evt := <-c.rtm.IncomingEvents:
@@ -63,7 +64,6 @@ func (c *Client) init() {
 				}
 
 			case <-c.done:
-				c.wg.Done()
 				return
 			}
 		}
@@ -72,6 +72,7 @@ func (c *Client) init() {
 	// Process outgoing writes
 	c.wg.Add(1)
 	go func() {
+		defer c.wg.Done()
 		batchCh, errCh := LineBatcher(c.writeOut)
 
 		for batch := range batchCh {
@@ -82,8 +83,6 @@ func (c *Client) init() {
 		if err := <-errCh; err != nil {
 			panic(err)
 		}
-
-		c.wg.Done()
 	}()
 }
 
