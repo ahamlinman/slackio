@@ -15,7 +15,7 @@ type Client struct {
 	rtm          *slack.RTM
 	slackChannel string
 	done         chan struct{}
-	wg           *sync.WaitGroup
+	wg           sync.WaitGroup
 
 	readIn  io.WriteCloser
 	readOut io.ReadCloser
@@ -38,7 +38,6 @@ func New(token, channel string) *Client {
 		rtm:          rtm,
 		slackChannel: channel,
 		done:         make(chan struct{}),
-		wg:           &sync.WaitGroup{},
 
 		readIn:  readIn,
 		readOut: readOut,
