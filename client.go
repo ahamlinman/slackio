@@ -9,10 +9,8 @@ import (
 	"github.com/nlopes/slack"
 )
 
-// Client is a ReadWriteCloser for a single Slack channel, backed by the Slack
-// real-time API. The content of the channel's main body is represented as
-// lines of text. Concepts like users, threads, and reactions are entirely
-// ignored.
+// Client is a ReadWriteCloser for a single Slack channel, where the content of
+// the channel's main body is represented as lines of text.
 type Client struct {
 	rtm          *slack.RTM
 	slackChannel string
@@ -25,9 +23,8 @@ type Client struct {
 	writeOut io.ReadCloser
 }
 
-// New returns a Client for the given channel that uses the given Slack API
-// token. Note that channel must be an ID rather than a channel name (this can
-// be obtained from the URL path when viewing Slack on the web).
+// New returns a Client that connects to Slack in real-time, using the provided
+// API token and filtering by the provided channel ID.
 func New(token, channel string) *Client {
 	api := slack.New(token)
 	rtm := api.NewRTM()
@@ -110,16 +107,14 @@ func (c *Client) Read(p []byte) (int, error) {
 }
 
 // Write submits one or more newline-delimited messages to the main body of a
-// Slack channel. Every line is sent as an individual message, and no batching
-// of any kind is performed (though this is under consideration as a potential
-// improvement).
+// Slack channel. Every line is sent as an individual message.
 func (c *Client) Write(p []byte) (int, error) {
 	return c.writeIn.Write(p)
 }
 
-// Close disconnects this Client from the real-time API and shuts down internal
-// buffers. After calling Close, the next call to Read will result in an EOF
-// and the next call to Write will result in an error.
+// Close disconnects this Client from Slack and shuts down internal buffers.
+// After calling Close, the next call to Read will result in an EOF and the
+// next call to Write will result in an error.
 func (c *Client) Close() error {
 	c.done <- struct{}{}
 
