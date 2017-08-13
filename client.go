@@ -4,6 +4,7 @@ package slackio
 
 import (
 	"io"
+	"sync"
 
 	"github.com/nlopes/slack"
 )
@@ -14,6 +15,7 @@ type Client struct {
 	rtm          *slack.RTM
 	slackChannel string
 	done         chan struct{}
+	wg           *sync.WaitGroup
 
 	readIn  io.WriteCloser
 	readOut io.ReadCloser
@@ -36,6 +38,7 @@ func New(token, channel string) *Client {
 		rtm:          rtm,
 		slackChannel: channel,
 		done:         make(chan struct{}),
+		wg:           &sync.WaitGroup{},
 
 		readIn:  readIn,
 		readOut: readOut,
@@ -51,6 +54,7 @@ func New(token, channel string) *Client {
 // init spawns internal goroutines that manage input and output.
 func (c *Client) init() {
 	// Process incoming reads
+	c.wg.Add(1)
 	go func() {
 		for {
 			select {
@@ -60,14 +64,14 @@ func (c *Client) init() {
 				}
 
 			case <-c.done:
+				c.wg.Done()
 				return
 			}
 		}
 	}()
 
 	// Process outgoing writes
-	// TODO should stick a sync.WaitGroup somewhere to make sure this
-	// handler isn't killed before it panics
+	c.wg.Add(1)
 	go func() {
 		batchCh, errCh := LineBatcher(c.writeOut)
 
@@ -79,6 +83,8 @@ func (c *Client) init() {
 		if err := <-errCh; err != nil {
 			panic(err)
 		}
+
+		c.wg.Done()
 	}()
 }
 
@@ -125,6 +131,11 @@ func (c *Client) Close() error {
 	// implementation of this method.
 	c.readIn.Close()
 	c.writeIn.Close()
+
+	// If the program is exiting, allow internal goroutines the chance to panic.
+	// TODO When we get to the point that multiple slackios are more useful, this
+	// entire error strategy should be reconsidered.
+	c.wg.Wait()
 
 	return c.rtm.Disconnect()
 }
