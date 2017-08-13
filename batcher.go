@@ -10,14 +10,14 @@ import (
 // modification before an output batch is emitted.
 //
 // Consumers of the batcher should range over its output channel. After the
-// output channel has closed, consumers must read the emitted error value from
-// the error channel.
+// output channel has closed, consumers should read the emitted error value
+// from the error channel.
 type Batcher func(io.Reader) (<-chan string, <-chan error)
 
 // LineBatcher is a Batcher that emits individual, unmodified lines of output.
 func LineBatcher(r io.Reader) (<-chan string, <-chan error) {
 	outCh := make(chan string)
-	errCh := make(chan error)
+	errCh := make(chan error, 1)
 
 	go func() {
 		scanner := bufio.NewScanner(r) // Breaks on newlines by default
