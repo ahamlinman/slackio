@@ -124,7 +124,7 @@ func (c *Client) Write(p []byte) (int, error) {
 // After calling Close, the next call to Read will result in an EOF and the
 // next call to Write will result in an error.
 func (c *Client) Close() error {
-	c.done <- struct{}{}
+	close(c.done)
 
 	// Close the input of each pipe, so the next Read returns EOF. These are
 	// documented to always return nil - this assumption simplifies the
