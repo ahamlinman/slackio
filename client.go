@@ -3,7 +3,6 @@
 package slackio
 
 import (
-	"bufio"
 	"io"
 
 	"github.com/nlopes/slack"
@@ -67,14 +66,17 @@ func (c *Client) init() {
 	}()
 
 	// Process outgoing writes
+	// TODO should stick a sync.WaitGroup somewhere to make sure this
+	// handler isn't killed before it panics
 	go func() {
-		scanner := bufio.NewScanner(c.writeOut) // Breaks on newlines by default
-		for scanner.Scan() {
-			msg := c.rtm.NewOutgoingMessage(scanner.Text(), c.slackChannel)
+		batchCh, errCh := LineBatcher(c.writeOut)
+
+		for batch := range batchCh {
+			msg := c.rtm.NewOutgoingMessage(batch, c.slackChannel)
 			c.rtm.SendMessage(msg)
 		}
 
-		if err := scanner.Err(); err != nil {
+		if err := <-errCh; err != nil {
 			panic(err)
 		}
 	}()
