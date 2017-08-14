@@ -3,7 +3,6 @@ package slackio
 import (
 	"bufio"
 	"io"
-	"strings"
 	"time"
 )
 
@@ -22,11 +21,16 @@ type Batcher func(io.Reader) (<-chan string, <-chan error)
 var DefaultBatcher Batcher = NewIntervalBatcher(LineBatcher, 100*time.Millisecond, "\n")
 
 // LineBatcher is a Batcher that emits individual, unmodified lines of output.
+// Input that terminates with EOF before a newline is found will be emitted as
+// if it were terminated by a newline.
 func LineBatcher(r io.Reader) (<-chan string, <-chan error) {
 	outCh, errCh := make(chan string), make(chan error, 1)
 
 	go func() {
-		defer close(outCh)
+		defer func() {
+			close(outCh)
+			close(errCh)
+		}()
 
 		scanner := bufio.NewScanner(r) // Breaks on newlines by default
 		for scanner.Scan() {
@@ -39,16 +43,15 @@ func LineBatcher(r io.Reader) (<-chan string, <-chan error) {
 	return outCh, errCh
 }
 
-// NewIntervalBatcher creates a Batcher that further batches the output of a
-// Batcher over intervals of time.
-//
-// That is to say... when the provided Batcher emits a new batch of output, a
-// timer will be started that expires after the given duration. Any output
-// emitted by the provided batcher while the timer is in progress will be
-// appended to previous batches, separated by the provided delimiter. When the
-// timer expires, all collected output will be emitted over the output channel
-// and the collection buffer will be reset. The next time the provided batcher
-// emits output, the process starts again.
+// NewIntervalBatcher returns a Batcher that collects the output of an upstream
+// Batcher over a defined interval. When the upstream Batcher first emits an
+// output batch, it is collected into a buffer and a timer is started lasting
+// for the given duration. As more output is emitted while the timer is
+// running, it is appended to the buffer with individual batches separated by
+// the provided delimiter. When the timer expires, or when the upstream batcher
+// terminates, the buffer is flushed to the output channel if it is non-blank.
+// The buffer is cleared and the process repeats while the upstream batcher is
+// running.
 //
 // The batching interval can be adjusted based on the nature of the expected
 // output, though it is recommended that it be kept short.
@@ -60,17 +63,36 @@ func NewIntervalBatcher(b Batcher, d time.Duration, delim string) Batcher {
 		var output string
 		var timer <-chan time.Time
 
+		flushOutput := func() {
+			if output != "" {
+				outCh <- output
+			}
+
+			output = ""
+		}
+
 		go func() {
-			defer close(outCh)
+			defer func() {
+				flushOutput()
+				close(outCh)
+				close(outErrCh) // may or may not have a value; either way works
+			}()
 
 			for {
 				select {
 				case s, ok := <-inCh:
 					if !ok {
+						// Careful, this isn't the *only* successful termination case! The
+						// upstream batcher could also emit nil on its error channel before
+						// closing the input channel. There's a reason defer is useful.
 						return
 					}
 
-					output += delim + s
+					if output == "" {
+						output = s
+					} else {
+						output += delim + s
+					}
 
 					if timer == nil {
 						timer = time.After(d)
@@ -78,8 +100,7 @@ func NewIntervalBatcher(b Batcher, d time.Duration, delim string) Batcher {
 
 				case <-timer:
 					timer = nil
-					outCh <- strings.TrimPrefix(output, delim)
-					output = ""
+					flushOutput()
 
 				case err := <-inErrCh:
 					outErrCh <- err
