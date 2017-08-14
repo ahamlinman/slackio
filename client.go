@@ -59,6 +59,9 @@ func (c *Client) init() {
 					case *slack.ConnectedEvent:
 						close(connected)
 
+					case *slack.InvalidAuthEvent:
+						panic("Slack API credentials are invalid")
+
 					case *slack.MessageEvent:
 						c.processIncomingMessage(data)
 					}
