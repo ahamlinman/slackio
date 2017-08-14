@@ -73,7 +73,7 @@ func (c *Client) init() {
 	c.wg.Add(1)
 	go func() {
 		defer c.wg.Done()
-		batchCh, errCh := LineBatcher(c.writeOut)
+		batchCh, errCh := DefaultBatcher(c.writeOut)
 
 		for batch := range batchCh {
 			msg := c.rtm.NewOutgoingMessage(batch, c.slackChannel)
@@ -112,8 +112,8 @@ func (c *Client) Read(p []byte) (int, error) {
 	return c.readOut.Read(p)
 }
 
-// Write submits one or more newline-delimited messages to the main body of a
-// Slack channel. Every line is sent as an individual message.
+// Write submits text to the main body of a Slack channel, with message
+// boundaries determined by the DefaultBatcher.
 func (c *Client) Write(p []byte) (int, error) {
 	return c.writeIn.Write(p)
 }
