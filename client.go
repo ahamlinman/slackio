@@ -3,6 +3,7 @@
 package slackio
 
 import (
+	"errors"
 	"io"
 	"sync"
 
@@ -12,78 +13,73 @@ import (
 // Client is a ReadWriteCloser for a single Slack channel, where the content of
 // the channel's main body is represented as lines of text.
 type Client struct {
-	rtm          *slack.RTM
-	slackChannel string
-	done         chan struct{}
-	wg           sync.WaitGroup
+	APIToken       string // required
+	SlackChannelID string // required
+	Batcher        Batcher
 
-	readIn  io.WriteCloser
-	readOut io.ReadCloser
-
-	writeIn  io.WriteCloser
+	initOnce sync.Once
+	wg       sync.WaitGroup
+	rtm      *slack.RTM
+	done     chan struct{}
+	readOut  io.ReadCloser
+	readIn   io.WriteCloser
 	writeOut io.ReadCloser
+	writeIn  io.WriteCloser
 }
 
-// New returns a Client that connects to Slack in real-time, using the provided
-// API token and filtering by the provided channel ID.
-func New(token, channel string) *Client {
-	api := slack.New(token)
-	rtm := api.NewRTM()
-	go rtm.ManageConnection()
-
-	readOut, readIn := io.Pipe()
-	writeOut, writeIn := io.Pipe()
-
-	c := &Client{
-		rtm:          rtm,
-		slackChannel: channel,
-		done:         make(chan struct{}),
-
-		readIn:  readIn,
-		readOut: readOut,
-
-		writeIn:  writeIn,
-		writeOut: writeOut,
-	}
-	c.init()
-
-	return c
-}
-
-// init spawns internal goroutines that manage input and output.
+// init initializes internal state for a Client and spawns internal goroutines.
+// It must be called at the beginning of all other Client methods.
 func (c *Client) init() {
-	// Process incoming reads
-	c.wg.Add(1)
-	go func() {
-		defer c.wg.Done()
-		for {
-			select {
-			case evt := <-c.rtm.IncomingEvents:
-				if data, ok := evt.Data.(*slack.MessageEvent); ok {
-					c.processIncomingMessage(data)
+	c.initOnce.Do(func() {
+		if c.APIToken == "" || c.SlackChannelID == "" {
+			panic(errors.New("APIToken and SlackChannel are required"))
+		}
+
+		if c.Batcher == nil {
+			c.Batcher = DefaultBatcher
+		}
+
+		api := slack.New(c.APIToken)
+		c.rtm = api.NewRTM()
+		go c.rtm.ManageConnection()
+
+		c.done = make(chan struct{})
+		c.readOut, c.readIn = io.Pipe()
+		c.writeOut, c.writeIn = io.Pipe()
+
+		// Process incoming reads
+		c.wg.Add(1)
+		go func() {
+			defer c.wg.Done()
+			for {
+				select {
+				case evt := <-c.rtm.IncomingEvents:
+					if data, ok := evt.Data.(*slack.MessageEvent); ok {
+						c.processIncomingMessage(data)
+					}
+
+				case <-c.done:
+					return
 				}
-
-			case <-c.done:
-				return
 			}
-		}
-	}()
+		}()
 
-	// Process outgoing writes
-	c.wg.Add(1)
-	go func() {
-		defer c.wg.Done()
-		batchCh, errCh := DefaultBatcher(c.writeOut)
+		// Process outgoing writes
+		c.wg.Add(1)
+		go func() {
+			defer c.wg.Done()
+			batchCh, errCh := c.Batcher(c.writeOut)
 
-		for batch := range batchCh {
-			msg := c.rtm.NewOutgoingMessage(batch, c.slackChannel)
-			c.rtm.SendMessage(msg)
-		}
+			for batch := range batchCh {
+				msg := c.rtm.NewOutgoingMessage(batch, c.SlackChannelID)
+				c.rtm.SendMessage(msg)
+			}
 
-		if err := <-errCh; err != nil {
-			panic(err)
-		}
-	}()
+			if err := <-errCh; err != nil {
+				panic(err)
+			}
+		}()
+	})
 }
 
 // processIncomingMessage filters Slack messages and extracts their text.
@@ -93,7 +89,7 @@ func (c *Client) processIncomingMessage(m *slack.MessageEvent) {
 	// previous message, so you can verify that it was sent properly.
 	if m.Type != "message" ||
 		m.ReplyTo > 0 ||
-		m.Channel != c.slackChannel ||
+		m.Channel != c.SlackChannelID ||
 		m.ThreadTimestamp != "" ||
 		m.Text == "" {
 		return
@@ -109,12 +105,14 @@ func (c *Client) processIncomingMessage(m *slack.MessageEvent) {
 // appended newline. Messages with explicit line breaks are equivalent to
 // multiple single messages in succession.
 func (c *Client) Read(p []byte) (int, error) {
+	c.init()
 	return c.readOut.Read(p)
 }
 
 // Write submits text to the main body of a Slack channel, with message
 // boundaries determined by the DefaultBatcher.
 func (c *Client) Write(p []byte) (int, error) {
+	c.init()
 	return c.writeIn.Write(p)
 }
 
@@ -122,6 +120,8 @@ func (c *Client) Write(p []byte) (int, error) {
 // After calling Close, the next call to Read will result in an EOF and the
 // next call to Write will result in an error.
 func (c *Client) Close() error {
+	c.init()
+
 	close(c.done)
 
 	// Close the input of each pipe, so the next Read returns EOF. These are
