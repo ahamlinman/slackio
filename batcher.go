@@ -3,6 +3,7 @@ package slackio
 import (
 	"bufio"
 	"io"
+	"strings"
 	"time"
 )
 
@@ -77,7 +78,7 @@ func NewIntervalBatcher(b Batcher, d time.Duration, delim string) Batcher {
 
 				case <-timer:
 					timer = nil
-					outCh <- output
+					outCh <- strings.TrimPrefix(output, delim)
 					output = ""
 
 				case err := <-inErrCh:
