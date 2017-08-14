@@ -48,7 +48,6 @@ func (c *Client) init() {
 		c.writeOut, c.writeIn = io.Pipe()
 
 		// Process incoming events from Slack
-		connected := make(chan struct{})
 		c.wg.Add(1)
 		go func() {
 			defer c.wg.Done()
@@ -56,9 +55,6 @@ func (c *Client) init() {
 				select {
 				case evt := <-c.rtm.IncomingEvents:
 					switch data := evt.Data.(type) {
-					case *slack.ConnectedEvent:
-						close(connected)
-
 					case *slack.InvalidAuthEvent:
 						panic("Slack API credentials are invalid")
 
@@ -87,9 +83,6 @@ func (c *Client) init() {
 				panic(err)
 			}
 		}()
-
-		// Wait for Slack connection to complete
-		<-connected
 	})
 }
 
