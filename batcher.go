@@ -18,7 +18,7 @@ type Batcher func(io.Reader) (<-chan string, <-chan error)
 // DefaultBatcher batches lines of input over a timespan of 0.1 seconds. This
 // is intended as a reasonable default for applications that occasionally write
 // a chunk of multiline output.
-var DefaultBatcher = NewIntervalBatcher(LineBatcher, 100*time.Millisecond, "\n")
+var DefaultBatcher Batcher = NewIntervalBatcher(LineBatcher, 100*time.Millisecond, "\n")
 
 // LineBatcher is a Batcher that emits individual, unmodified lines of output.
 // Input that terminates with EOF before a newline is found will be emitted as
