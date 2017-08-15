@@ -32,7 +32,7 @@ type Client struct {
 func (c *Client) init() {
 	c.initOnce.Do(func() {
 		if c.APIToken == "" || c.SlackChannelID == "" {
-			panic(errors.New("APIToken and SlackChannel are required"))
+			panic(errors.New("APIToken and SlackChannelID are required"))
 		}
 
 		if c.Batcher == nil {
@@ -114,7 +114,7 @@ func (c *Client) Read(p []byte) (int, error) {
 }
 
 // Write submits text to the main body of a Slack channel, with message
-// boundaries determined by the DefaultBatcher.
+// boundaries determined by the Client's Batcher.
 func (c *Client) Write(p []byte) (int, error) {
 	c.init()
 	return c.writeIn.Write(p)
