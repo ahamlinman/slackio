@@ -10,9 +10,9 @@ import (
 	"github.com/nlopes/slack"
 )
 
-// Client is a ReadWriteCloser for a single Slack channel, where the content of
-// the channel's main body is represented as lines of text.
-type Client struct {
+// ReadWriter is a ReadWriteCloser for a single Slack channel, where the
+// content of the channel's main body is represented as lines of text.
+type ReadWriter struct {
 	APIToken       string // required
 	SlackChannelID string // required
 	Batcher        Batcher
@@ -27,9 +27,10 @@ type Client struct {
 	writeIn  io.WriteCloser
 }
 
-// init initializes internal state for a Client and spawns internal goroutines.
-// It must be called at the beginning of all other Client methods.
-func (c *Client) init() {
+// init initializes internal state for a ReadWriter and spawns internal
+// goroutines.  It must be called at the beginning of all other ReadWriter
+// methods.
+func (c *ReadWriter) init() {
 	c.initOnce.Do(func() {
 		if c.APIToken == "" || c.SlackChannelID == "" {
 			panic(errors.New("APIToken and SlackChannelID are required"))
@@ -87,7 +88,7 @@ func (c *Client) init() {
 }
 
 // processIncomingMessage filters Slack messages and extracts their text.
-func (c *Client) processIncomingMessage(m *slack.MessageEvent) {
+func (c *ReadWriter) processIncomingMessage(m *slack.MessageEvent) {
 	// On the ReplyTo field: A message with this field is sent by Slack's RTM API
 	// when it thinks you have a flaky network connection. It's a copy of *your*
 	// previous message, so you can verify that it was sent properly.
@@ -108,22 +109,22 @@ func (c *Client) processIncomingMessage(m *slack.MessageEvent) {
 // threads), buffered by line. Single messages will be terminated with an
 // appended newline. Messages with explicit line breaks are equivalent to
 // multiple single messages in succession.
-func (c *Client) Read(p []byte) (int, error) {
+func (c *ReadWriter) Read(p []byte) (int, error) {
 	c.init()
 	return c.readOut.Read(p)
 }
 
 // Write submits text to the main body of a Slack channel, with message
-// boundaries determined by the Client's Batcher.
-func (c *Client) Write(p []byte) (int, error) {
+// boundaries determined by the ReadWriter's Batcher.
+func (c *ReadWriter) Write(p []byte) (int, error) {
 	c.init()
 	return c.writeIn.Write(p)
 }
 
-// Close disconnects this Client from Slack and shuts down internal buffers.
-// After calling Close, the next call to Read will result in an EOF and the
-// next call to Write will result in an error.
-func (c *Client) Close() error {
+// Close disconnects this ReadWriter from Slack and shuts down internal
+// buffers.  After calling Close, the next call to Read will result in an EOF
+// and the next call to Write will result in an error.
+func (c *ReadWriter) Close() error {
 	c.init()
 
 	close(c.done)
