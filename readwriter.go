@@ -6,20 +6,17 @@ import (
 	"errors"
 	"io"
 	"sync"
-
-	"github.com/nlopes/slack"
 )
 
 // ReadWriter is a ReadWriteCloser for a single Slack channel, where the
 // content of the channel's main body is represented as lines of text.
 type ReadWriter struct {
-	APIToken       string // required
-	SlackChannelID string // required
+	Client         *Client // required
+	SlackChannelID string  // required
 	Batcher        Batcher
 
 	initOnce sync.Once
 	wg       sync.WaitGroup
-	rtm      *slack.RTM
 	done     chan struct{}
 	readOut  io.ReadCloser
 	readIn   io.WriteCloser
@@ -32,41 +29,40 @@ type ReadWriter struct {
 // methods.
 func (c *ReadWriter) init() {
 	c.initOnce.Do(func() {
-		if c.APIToken == "" || c.SlackChannelID == "" {
-			panic(errors.New("APIToken and SlackChannelID are required"))
+		if c.Client == nil || c.SlackChannelID == "" {
+			panic(errors.New("Streamer and SlackChannelID are required"))
 		}
 
 		if c.Batcher == nil {
 			c.Batcher = DefaultBatcher
 		}
 
-		api := slack.New(c.APIToken)
-		c.rtm = api.NewRTM()
-		go c.rtm.ManageConnection()
-
 		c.done = make(chan struct{})
 		c.readOut, c.readIn = io.Pipe()
 		c.writeOut, c.writeIn = io.Pipe()
 
-		// Process incoming events from Slack
+		// Process incoming reads from the Streamer
+		streamCh, streamDoneCh := c.Client.GetMessageStream()
 		c.wg.Add(1)
 		go func() {
 			defer c.wg.Done()
-			for {
-				select {
-				case evt := <-c.rtm.IncomingEvents:
-					switch data := evt.Data.(type) {
-					case *slack.InvalidAuthEvent:
-						panic("Slack API credentials are invalid")
+			for msg := range streamCh {
+				if msg.ChannelID != c.SlackChannelID {
+					continue
+				}
 
-					case *slack.MessageEvent:
-						c.processIncomingMessage(data)
-					}
-
-				case <-c.done:
-					return
+				if _, err := c.readIn.Write(append([]byte(msg.Text), byte('\n'))); err != nil {
+					panic(err)
 				}
 			}
+		}()
+
+		// Close Streamer's done channel when we close ours
+		c.wg.Add(1)
+		go func() {
+			<-c.done
+			close(streamDoneCh)
+			c.wg.Done()
 		}()
 
 		// Process outgoing writes to Slack
@@ -76,8 +72,10 @@ func (c *ReadWriter) init() {
 			batchCh, errCh := c.Batcher(c.writeOut)
 
 			for batch := range batchCh {
-				msg := c.rtm.NewOutgoingMessage(batch, c.SlackChannelID)
-				c.rtm.SendMessage(msg)
+				c.Client.SendMessage(&Message{
+					ChannelID: c.SlackChannelID,
+					Text:      batch,
+				})
 			}
 
 			if err := <-errCh; err != nil {
@@ -85,24 +83,6 @@ func (c *ReadWriter) init() {
 			}
 		}()
 	})
-}
-
-// processIncomingMessage filters Slack messages and extracts their text.
-func (c *ReadWriter) processIncomingMessage(m *slack.MessageEvent) {
-	// On the ReplyTo field: A message with this field is sent by Slack's RTM API
-	// when it thinks you have a flaky network connection. It's a copy of *your*
-	// previous message, so you can verify that it was sent properly.
-	if m.Type != "message" ||
-		m.ReplyTo > 0 ||
-		m.Channel != c.SlackChannelID ||
-		m.ThreadTimestamp != "" ||
-		m.Text == "" {
-		return
-	}
-
-	if _, err := c.readIn.Write(append([]byte(m.Text), byte('\n'))); err != nil {
-		panic(err)
-	}
 }
 
 // Read returns text from the main body of a Slack channel (i.e. excluding
@@ -140,5 +120,5 @@ func (c *ReadWriter) Close() error {
 	// entire error strategy should be reconsidered.
 	c.wg.Wait()
 
-	return c.rtm.Disconnect()
+	return nil
 }
