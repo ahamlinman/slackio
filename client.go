@@ -6,7 +6,7 @@ import (
 	"github.com/nlopes/slack"
 )
 
-// Client implements the ability to send and receive Slack messages using a
+// Client implements an ability to send and receive Slack messages using a
 // real-time API. It provides the underlying functionality for Reader and
 // Writer.
 //
