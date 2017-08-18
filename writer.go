@@ -6,11 +6,17 @@ import (
 	"sync"
 )
 
+// WriteClient represents objects that can send slackio Messages. Note that in
+// slackio, Client implements this interface.
+type WriteClient interface {
+	SendMessage(*Message)
+}
+
 // Writer writes messages to the main body of a single Slack channel.
 type Writer struct {
-	Client         *Client // required
-	SlackChannelID string  // required
-	Batcher        Batcher // uses DefaultBatcher if not provided
+	Client         WriteClient // required
+	SlackChannelID string      // required
+	Batcher        Batcher     // uses DefaultBatcher if not provided
 
 	initOnce sync.Once
 	wg       sync.WaitGroup

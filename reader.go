@@ -6,10 +6,16 @@ import (
 	"sync"
 )
 
+// ReadClient represents objects that can provide a stream of slackio Messages.
+// Note that in slackio, Client implements this interface.
+type ReadClient interface {
+	GetMessageStream() (<-chan *Message, chan<- struct{})
+}
+
 // Reader reads messages from the main body of one or more Slack channels.
 type Reader struct {
-	Client         *Client // required
-	SlackChannelID string  // optional; filters by Slack channel if provided
+	Client         ReadClient // required
+	SlackChannelID string     // optional; filters by Slack channel if provided
 
 	initOnce sync.Once
 	wg       sync.WaitGroup
