@@ -6,8 +6,14 @@ import (
 	"github.com/nlopes/slack"
 )
 
-// Client provides the ability to send and receive Slack messages using a
-// real-time API.
+// Client implements the ability to send and receive Slack messages using a
+// real-time API. It provides the underlying functionality for Reader and
+// Writer.
+//
+// A Client instance encapsulates a WebSocket connection to Slack. Users of
+// slackio should create a single Client and share it across Reader and Writer
+// instances. The connection is made on-demand when a method of the Client is
+// first invoked.
 type Client struct {
 	APIToken string // required
 
