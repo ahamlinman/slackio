@@ -43,6 +43,10 @@ func LineBatcher(r io.Reader) (<-chan string, <-chan error) {
 	return outCh, errCh
 }
 
+// timeAfter allows for mocking of time.After in tests. It's a slightly dirty
+// implementation to make NewIntervalBatcher's interface easier to use.
+var timeAfter = time.After
+
 // NewIntervalBatcher returns a Batcher that collects the output of an upstream
 // Batcher over a defined interval. When the upstream Batcher first emits an
 // output batch, it is collected into a buffer and a timer is started lasting
@@ -95,7 +99,7 @@ func NewIntervalBatcher(b Batcher, d time.Duration, delim string) Batcher {
 					}
 
 					if timer == nil {
-						timer = time.After(d)
+						timer = timeAfter(d)
 					}
 
 				case <-timer:
