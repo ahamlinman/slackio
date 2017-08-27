@@ -13,7 +13,7 @@ type errorReader struct{}
 
 var errorReaderErr = errors.New("sample reader error")
 
-func (_ errorReader) Read(_ []byte) (int, error) {
+func (errorReader) Read(_ []byte) (int, error) {
 	return 0, errorReaderErr
 }
 
