@@ -32,7 +32,7 @@ func (b *testBatcher) makeBatcher() Batcher {
 	b.next, b.received = make(chan struct{}), make(chan struct{})
 
 	return func(_ io.Reader) (<-chan string, <-chan error) {
-		outCh, errCh := make(chan string), make(chan error)
+		outCh, errCh := make(chan string), make(chan error, 1)
 
 		go func() {
 			for _, batch := range b.batches {
@@ -142,7 +142,7 @@ func TestIntervalBatcher(t *testing.T) {
 		t.Fatalf("unexpected interval batcher output: %q (expected 'to batch')", s)
 	}
 
-	tb.emitNext()
+	tb.emitNext() // close output channel to stop downstream batcher
 	if _, ok := <-outCh; ok {
 		t.Fatal("interval batcher did not close output when upstream did")
 	}
@@ -169,9 +169,10 @@ func TestIntervalBatcherHandlesErrors(t *testing.T) {
 	batcher := NewIntervalBatcher(tb.makeBatcher(), time.Second, " ")
 	outCh, errCh := batcher(strings.NewReader(""))
 
-	tb.emitNext()
-	tb.emitNext()
-	tb.emitNext()
+	for range tb.batches {
+		tb.emitNext()
+	}
+	tb.emitNext() // close output channel to stop downstream batcher
 
 	if s := <-outCh; s != "test messages" {
 		t.Fatalf("interval batcher did not flush all output on error: %q (expected 'test messages')", s)
@@ -180,6 +181,4 @@ func TestIntervalBatcherHandlesErrors(t *testing.T) {
 	if err := <-errCh; err != expectedErr {
 		t.Fatalf("unexpected interval batcher error: %q", err.Error())
 	}
-
-	tb.emitNext() // clean up internal goroutine
 }

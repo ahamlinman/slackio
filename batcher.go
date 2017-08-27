@@ -79,16 +79,15 @@ func NewIntervalBatcher(b Batcher, d time.Duration, delim string) Batcher {
 			defer func() {
 				flushOutput()
 				close(outCh)
-				close(outErrCh) // may or may not have a value; either way works
+
+				outErrCh <- <-inErrCh
+				close(outErrCh)
 			}()
 
 			for {
 				select {
 				case s, ok := <-inCh:
 					if !ok {
-						// Careful, this isn't the *only* successful termination case! The
-						// upstream batcher could also emit nil on its error channel before
-						// closing the input channel. There's a reason defer is useful.
 						return
 					}
 
@@ -105,10 +104,6 @@ func NewIntervalBatcher(b Batcher, d time.Duration, delim string) Batcher {
 				case <-timer:
 					timer = nil
 					flushOutput()
-
-				case err := <-inErrCh:
-					outErrCh <- err
-					return
 				}
 			}
 		}()
