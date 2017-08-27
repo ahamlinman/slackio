@@ -9,7 +9,7 @@ import (
 // WriteClient represents objects that can send slackio Messages. Note that in
 // slackio, Client implements this interface.
 type WriteClient interface {
-	SendMessage(*Message)
+	SendMessage(Message)
 }
 
 // Writer writes messages to the main body of a single Slack channel.
@@ -45,7 +45,7 @@ func (c *Writer) init() {
 			batchCh, errCh := c.Batcher(c.writeOut)
 
 			for batch := range batchCh {
-				c.Client.SendMessage(&Message{
+				c.Client.SendMessage(Message{
 					ChannelID: c.SlackChannelID,
 					Text:      batch,
 				})

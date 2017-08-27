@@ -12,14 +12,13 @@ type testReadClient struct {
 	wg       sync.WaitGroup
 }
 
-func (c *testReadClient) GetMessageStream() (<-chan *Message, chan<- struct{}) {
-	outCh, doneCh := make(chan *Message), make(chan struct{})
+func (c *testReadClient) GetMessageStream() (<-chan Message, chan<- struct{}) {
+	outCh, doneCh := make(chan Message), make(chan struct{})
 
 	c.wg.Add(1)
 	go func() {
 		for _, m := range c.messages {
-			t := m
-			outCh <- &t
+			outCh <- m
 		}
 		close(outCh)
 		c.wg.Done()

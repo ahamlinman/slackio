@@ -9,7 +9,7 @@ import (
 // ReadClient represents objects that can provide a stream of slackio Messages.
 // Note that in slackio, Client implements this interface.
 type ReadClient interface {
-	GetMessageStream() (<-chan *Message, chan<- struct{})
+	GetMessageStream() (<-chan Message, chan<- struct{})
 }
 
 // Reader reads messages from the main body of one or more Slack channels.

@@ -21,7 +21,7 @@ type Client struct {
 	initOnce   sync.Once
 	wg         sync.WaitGroup
 	done       chan struct{}
-	chanPool   []chan *Message
+	chanPool   []chan Message
 	chanPoolMu sync.Mutex
 }
 
@@ -75,7 +75,7 @@ func (c *Client) distribute(m *slack.MessageEvent) {
 	defer c.chanPoolMu.Unlock()
 
 	for _, ch := range c.chanPool {
-		ch <- &Message{ChannelID: m.Channel, Text: m.Text}
+		ch <- Message{ChannelID: m.Channel, Text: m.Text}
 	}
 }
 
@@ -85,20 +85,19 @@ func (c *Client) distribute(m *slack.MessageEvent) {
 //
 // Even after the done channel is closed, the caller must continue to drain the
 // msgs channel until it is closed in order to prevent a possible deadlock.
-func (c *Client) GetMessageStream() (msgs <-chan *Message, done chan<- struct{}) {
+func (c *Client) GetMessageStream() (msgs <-chan Message, done chan<- struct{}) {
 	c.init()
 
 	c.chanPoolMu.Lock()
 	defer c.chanPoolMu.Unlock()
 
-	// Small amount of buffering to maybe speed things up a bit
-	msgsRW, doneRW := make(chan *Message, 1), make(chan struct{})
+	// Small amount of buffering to maybe speed things up a bit?
+	msgsRW, doneRW := make(chan Message, 1), make(chan struct{})
 	c.chanPool = append(c.chanPool, msgsRW)
 
 	// When we get a done signal, remove this channel from the pool
 	go func() {
 		<-doneRW
-		defer close(msgsRW)
 
 		c.chanPoolMu.Lock()
 		defer c.chanPoolMu.Unlock()
@@ -109,13 +108,15 @@ func (c *Client) GetMessageStream() (msgs <-chan *Message, done chan<- struct{})
 				break
 			}
 		}
+
+		close(msgsRW)
 	}()
 
 	return msgsRW, doneRW
 }
 
 // SendMessage sends the given Message to its associated Slack channel.
-func (c *Client) SendMessage(m *Message) {
+func (c *Client) SendMessage(m Message) {
 	c.init()
 
 	msg := c.rtm.NewOutgoingMessage(m.Text, m.ChannelID)

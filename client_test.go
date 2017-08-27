@@ -41,9 +41,9 @@ func TestDistribute(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.description, func(t *testing.T) {
-			ch1, ch2 := make(chan *Message, 1), make(chan *Message, 1)
+			ch1, ch2 := make(chan Message, 1), make(chan Message, 1)
 
-			c := Client{chanPool: []chan *Message{ch1, ch2}}
+			c := Client{chanPool: []chan Message{ch1, ch2}}
 			c.initOnce.Do(func() {})
 
 			// Yes, there are three layers of types here
@@ -51,7 +51,7 @@ func TestDistribute(t *testing.T) {
 			c.distribute(&evt)
 
 			if tc.shouldSend {
-				var m1, m2 *Message
+				var m1, m2 Message
 
 				for i := 0; i < 2; i++ {
 					select {
@@ -66,8 +66,8 @@ func TestDistribute(t *testing.T) {
 					}
 				}
 
-				if m1 == m2 {
-					t.Error("received pointers to exact same message")
+				if m1 != m2 {
+					t.Error("did not receive equivalent message values")
 				}
 			} else {
 				select {
@@ -87,7 +87,7 @@ func TestGetMessageStream(t *testing.T) {
 	c := &Client{}
 	c.initOnce.Do(func() {})
 
-	var msgChans [3]<-chan *Message
+	var msgChans [3]<-chan Message
 	var doneChans [3]chan<- struct{}
 
 	for i := range msgChans {

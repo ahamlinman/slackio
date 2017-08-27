@@ -35,13 +35,13 @@ func staticMockBatcher(r io.Reader) (<-chan string, <-chan error) {
 }
 
 type testWriteClient struct {
-	lastMessage *Message
+	lastMessage Message
 
 	initOnce   sync.Once
 	gotMessage chan struct{}
 }
 
-func (c *testWriteClient) SendMessage(m *Message) {
+func (c *testWriteClient) SendMessage(m Message) {
 	c.initOnce.Do(func() { c.gotMessage = make(chan struct{}) })
 	c.lastMessage = m
 	c.gotMessage <- struct{}{}
@@ -67,13 +67,13 @@ func TestWriter(t *testing.T) {
 
 	client.wait()
 
-	expectedMessage := &Message{
+	expectedMessage := Message{
 		ChannelID: "C12345678",
 		Text:      "(batch)",
 	}
 
 	if !reflect.DeepEqual(client.lastMessage, expectedMessage) {
-		t.Fatalf("message %#v did not match expectations (expected %#v)", *client.lastMessage, *expectedMessage)
+		t.Fatalf("message %#v did not match expectations (expected %#v)", client.lastMessage, expectedMessage)
 	}
 
 	if err := w.Close(); err != nil {
