@@ -142,7 +142,7 @@ func (c *Client) Close() error {
 	// Allow unit testing of the closure logic
 	if c.rtm != nil {
 		return c.rtm.Disconnect()
-	} else {
-		return nil
 	}
+
+	return nil
 }
