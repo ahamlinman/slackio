@@ -56,8 +56,7 @@ func (c *Reader) init() {
 			}
 		}()
 
-		// Close Client's done channel when we stop; GetMessageStream requires that
-		// we handle this whether we request termination or streamCh closes.
+		// Close Client's done channel when we stop
 		c.wg.Add(1)
 		go func() {
 			<-c.done

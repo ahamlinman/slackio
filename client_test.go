@@ -86,6 +86,7 @@ func TestDistribute(t *testing.T) {
 func TestGetMessageStream(t *testing.T) {
 	c := &Client{}
 	c.initOnce.Do(func() {})
+	c.done = make(chan struct{})
 
 	var msgChans [3]<-chan Message
 	var doneChans [3]chan<- struct{}
@@ -115,4 +116,57 @@ func TestGetMessageStream(t *testing.T) {
 	if len(c.chanPool) != 0 {
 		t.Fatal("final channel pool removal was incorrect")
 	}
+
+	if err := c.Close(); err != nil {
+		t.Fatalf("unexpected Client error on Close: %q", err.Error())
+	}
+}
+
+func TestClientClose(t *testing.T) {
+	c := &Client{}
+	c.initOnce.Do(func() {})
+	c.done = make(chan struct{})
+
+	var msgChans [50]<-chan Message
+	var doneChans [50]chan<- struct{}
+
+	for i := range msgChans {
+		msgChans[i], doneChans[i] = c.GetMessageStream()
+	}
+
+	// Some channels might be closed before Close is called; we should account
+	// for this.
+	close(doneChans[0])
+	<-msgChans[0]
+
+	closuresDone := make(chan struct{})
+	go func() {
+		for i := range msgChans {
+			if i == 0 {
+				continue // see above
+			}
+
+			<-msgChans[i]
+
+			// Consumers *might* close their done channel even when upstream closes;
+			// we should account for this.
+			if i == 1 {
+				close(doneChans[i])
+			}
+		}
+
+		close(closuresDone)
+	}()
+
+	if err := c.Close(); err != nil {
+		t.Fatalf("unexpected Client error on Close: %q", err.Error())
+	}
+
+	if len(c.chanPool) != 0 {
+		t.Fatal("Close did not block until all channels were removed from pool")
+	}
+
+	<-closuresDone
+	// If we somehow manage to not close a message stream, the test will time
+	// out here.
 }

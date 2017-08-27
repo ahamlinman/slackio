@@ -24,6 +24,9 @@ func (c *testReadClient) GetMessageStream() (<-chan Message, chan<- struct{}) {
 		c.wg.Done()
 	}()
 
+	// Note that this mock implementation of GetMessageStream depends on the
+	// caller closing the done channel. In general this is not required when the
+	// message stream is closed first.
 	c.wg.Add(1)
 	go func() {
 		<-doneCh
