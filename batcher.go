@@ -11,8 +11,9 @@ import (
 // modification before an output batch is emitted.
 //
 // Consumers of the batcher should range over its output channel. After the
-// output channel has closed, consumers should read the emitted error value
-// from the error channel.
+// output channel has closed, consumers should read a single error value from
+// the error channel. Batcher implementations should buffer the error channel
+// so that bad consumers don't create goroutine leaks.
 type Batcher func(io.Reader) (<-chan string, <-chan error)
 
 // DefaultBatcher batches lines of input over a timespan of 0.1 seconds. This
@@ -27,17 +28,14 @@ func LineBatcher(r io.Reader) (<-chan string, <-chan error) {
 	outCh, errCh := make(chan string), make(chan error, 1)
 
 	go func() {
-		defer func() {
-			close(outCh)
-			close(errCh)
-		}()
-
 		scanner := bufio.NewScanner(r) // Breaks on newlines by default
 		for scanner.Scan() {
 			outCh <- scanner.Text()
 		}
+		close(outCh)
 
 		errCh <- scanner.Err()
+		close(errCh)
 	}()
 
 	return outCh, errCh
@@ -76,18 +74,16 @@ func NewIntervalBatcher(b Batcher, d time.Duration, delim string) Batcher {
 		}
 
 		go func() {
-			defer func() {
-				flushOutput()
-				close(outCh)
-
-				outErrCh <- <-inErrCh
-				close(outErrCh)
-			}()
-
 			for {
 				select {
 				case s, ok := <-inCh:
 					if !ok {
+						flushOutput()
+						close(outCh)
+
+						outErrCh <- <-inErrCh
+						close(outErrCh)
+
 						return
 					}
 

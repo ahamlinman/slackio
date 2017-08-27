@@ -178,6 +178,10 @@ func TestIntervalBatcherHandlesErrors(t *testing.T) {
 		t.Fatalf("interval batcher did not flush all output on error: %q (expected 'test messages')", s)
 	}
 
+	if _, ok := <-outCh; ok {
+		t.Fatal("interval batcher did not close output when upstream did")
+	}
+
 	if err := <-errCh; err != expectedErr {
 		t.Fatalf("unexpected interval batcher error: %q", err.Error())
 	}
