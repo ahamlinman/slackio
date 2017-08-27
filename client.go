@@ -80,11 +80,13 @@ func (c *Client) distribute(m *slack.MessageEvent) {
 }
 
 // GetMessageStream returns a newly-created channel that will receive real-time
-// Slack messages, as well as a channel that the caller should close to
-// indicate that it wishes to stop processing values.
+// Slack messages, as well as a channel that the caller may close to indicate
+// that it wishes to stop processing values.
 //
-// Even after the done channel is closed, the caller must continue to drain the
-// msgs channel until it is closed in order to prevent a possible deadlock.
+// The caller of GetMessageStream is responsible for closing the done channel,
+// both when it wishes to terminate AND when the msgs channel is closed. If the
+// caller closes the done channel before the msgs channel is closed, the msgs
+// channel must still be drained until closure to prevent a possible deadlock.
 func (c *Client) GetMessageStream() (msgs <-chan Message, done chan<- struct{}) {
 	c.init()
 
@@ -109,6 +111,9 @@ func (c *Client) GetMessageStream() (msgs <-chan Message, done chan<- struct{}) 
 			}
 		}
 
+		// BUG: Closure of this channel in Close results in a good consumer closing
+		// their done channel and reaching this point. We'll end up panicking when
+		// we try to close the closed channel again.
 		close(msgsRW)
 	}()
 

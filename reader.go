@@ -18,8 +18,9 @@ type Reader struct {
 	SlackChannelID string     // optional; filters by Slack channel if provided
 
 	initOnce sync.Once
-	wg       sync.WaitGroup
+	stopOnce sync.Once
 	done     chan struct{}
+	wg       sync.WaitGroup
 	readOut  io.ReadCloser
 	readIn   io.WriteCloser
 }
@@ -35,29 +36,45 @@ func (c *Reader) init() {
 		c.done = make(chan struct{})
 		c.readOut, c.readIn = io.Pipe()
 
-		// Process incoming reads from the Client
+		// Process incoming reads from the Client; note that the stream channel
+		// will be drained until it is closed, as required by GetMessageStream.
 		streamCh, streamDoneCh := c.Client.GetMessageStream()
 		c.wg.Add(1)
 		go func() {
 			defer c.wg.Done()
+			defer c.stop()
+
 			for msg := range streamCh {
 				if c.SlackChannelID != "" && msg.ChannelID != c.SlackChannelID {
 					continue
 				}
 
-				if _, err := c.readIn.Write(append([]byte(msg.Text), byte('\n'))); err != nil {
+				_, err := c.readIn.Write(append([]byte(msg.Text), byte('\n')))
+				if err != nil && err != io.ErrClosedPipe {
 					panic(err)
 				}
 			}
 		}()
 
-		// Close Client's done channel when we close ours
+		// Close Client's done channel when we stop; GetMessageStream requires that
+		// we handle this whether we request termination or streamCh closes.
 		c.wg.Add(1)
 		go func() {
 			<-c.done
 			close(streamDoneCh)
 			c.wg.Done()
 		}()
+	})
+}
+
+// stop shuts down this Reader and allows internal goroutines to terminate.
+func (c *Reader) stop() {
+	c.stopOnce.Do(func() {
+		close(c.done)
+
+		// Closing the write half of the pipe forces Read to return EOF and Write
+		// to return ErrClosedPipe. The call itself always returns nil.
+		c.readIn.Close()
 	})
 }
 
@@ -75,8 +92,9 @@ func (c *Reader) Read(p []byte) (int, error) {
 func (c *Reader) Close() error {
 	c.init()
 
-	close(c.done)
-	c.readIn.Close() // Always returns nil
+	// Yes, init right before stop is dumb. But it's easier to reason about.
+
+	c.stop()
 	c.wg.Wait()
 	return nil
 }

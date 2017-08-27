@@ -2,13 +2,13 @@ package slackio
 
 import (
 	"bytes"
+	"io"
 	"sync"
 	"testing"
 )
 
 type testReadClient struct {
 	messages []Message
-	closed   bool
 	wg       sync.WaitGroup
 }
 
@@ -27,7 +27,6 @@ func (c *testReadClient) GetMessageStream() (<-chan Message, chan<- struct{}) {
 	c.wg.Add(1)
 	go func() {
 		<-doneCh
-		c.closed = true
 		c.wg.Done()
 	}()
 
@@ -72,9 +71,7 @@ func TestReader(t *testing.T) {
 	}
 
 	client.wait()
-	if !client.closed {
-		t.Fatal("Reader did not close message stream on Close")
-	}
+	// Test times out if Reader fails to close done channel.
 }
 
 func TestSingleChannelReader(t *testing.T) {
@@ -115,9 +112,46 @@ func TestSingleChannelReader(t *testing.T) {
 	}
 
 	client.wait()
-	if !client.closed {
-		t.Fatal("Reader did not close message stream on Close")
+	// Test times out if Reader fails to close done channel.
+}
+
+func TestReaderDrainsGetMessageStream(t *testing.T) {
+	client := &testReadClient{
+		messages: []Message{
+			{
+				Text:      "a message",
+				ChannelID: "C12345678",
+			},
+			{
+				Text:      "and another",
+				ChannelID: "C87654321",
+			},
+			{
+				Text:      "even more",
+				ChannelID: "C08675309",
+			},
+		},
 	}
+
+	r := &Reader{Client: client}
+	var readBytes [16]byte
+
+	if _, err := r.Read(readBytes[:]); err != nil {
+		t.Fatalf("unexpected Reader error: %q", err.Error())
+	}
+
+	// Notice that subsequent messages are not read prior to closure.
+
+	if err := r.Close(); err != nil {
+		t.Fatalf("unexpected Reader error: %q", err.Error())
+	}
+
+	if _, err := r.Read(readBytes[:]); err != io.EOF {
+		t.Fatalf("unexpected Reader error: %q (expected EOF)", err.Error())
+	}
+
+	client.wait()
+	// Test times out if Reader fails to close done channel.
 }
 
 func TestReaderRequiresClient(t *testing.T) {
