@@ -84,8 +84,11 @@ func (c *Client) distribute(m *slack.MessageEvent) {
 // that it wishes to stop processing values. The msgs channel will be closed
 // when the associated Client is closed, or some time after done is closed.
 //
-// Even if the caller closes the done channel, the msgs channel must be drained
-// until closure to prevent a possible deadlock.
+// The returned channel includes a small buffer, but all sends into it are
+// blocking. The caller MUST continuously receive and process values from the
+// msgs channel until it is closed, or processing will slow down for all
+// consumers. This applies even after the done channel is closed. The intent
+// of this behavior is to prevent dropped and out-of-order messages.
 func (c *Client) GetMessageStream() (msgs <-chan Message, done chan<- struct{}) {
 	c.init()
 
