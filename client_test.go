@@ -1,6 +1,7 @@
 package slackio
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/nlopes/slack"
@@ -80,6 +81,58 @@ func TestDistribute(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestSubscribe(t *testing.T) {
+	c := &Client{}
+	c.initOnce.Do(func() {})
+
+	ch1, ch2 := make(chan Message), make(chan Message)
+	done := make(chan struct{})
+
+	subscribe := func(ch chan Message) {
+		c.Subscribe(ch)
+		done <- struct{}{}
+	}
+
+	// Take out all locks, run with -race, and watch this fail:
+	go subscribe(ch1)
+	go subscribe(ch2)
+	<-done
+	<-done
+
+	if len(c.chanPool) != 2 ||
+		(!reflect.DeepEqual(c.chanPool, []chan Message{ch1, ch2}) &&
+			!reflect.DeepEqual(c.chanPool, []chan Message{ch2, ch1})) {
+		t.Fatalf("unexpected channel pool after Subscribe: %#v", c.chanPool)
+	}
+}
+
+func TestUnsubscribe(t *testing.T) {
+	c := &Client{}
+	c.initOnce.Do(func() {})
+
+	ch1, ch2 := make(chan Message), make(chan Message)
+	done := make(chan struct{})
+	c.chanPool = append(c.chanPool, ch1, ch2)
+
+	unsubscribe := func(ch chan Message) {
+		if err := c.Unsubscribe(ch); err != nil {
+			t.Fatalf("unexpected unsubscribe error: %s", err.Error())
+		}
+
+		done <- struct{}{}
+	}
+
+	// Take out all locks, run with -race, and watch this fail:
+	go unsubscribe(ch1)
+	go unsubscribe(ch2)
+	<-done
+	<-done
+
+	if err := c.Unsubscribe(ch1); err != ErrNotSubscribed {
+		t.Fatalf("unexpected unsubscribe error: %#v (expected ErrNotSubscribed)", err)
 	}
 }
 

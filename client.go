@@ -1,10 +1,15 @@
 package slackio
 
 import (
+	"errors"
 	"sync"
 
 	"github.com/nlopes/slack"
 )
+
+// ErrNotSubscribed is returned when an attempt is made to unsubscribe a
+// channel that is not currently subscribed.
+var ErrNotSubscribed = errors.New("slackio: channel not subscribed")
 
 // Client implements an ability to send and receive Slack messages using a
 // real-time API. It provides the underlying functionality for Reader and
@@ -79,6 +84,49 @@ func (c *Client) distribute(m *slack.MessageEvent) {
 	}
 }
 
+// Subscribe adds a channel to this Client. After Subscribe returns, the
+// channel will begin receiving an unbounded stream of Messages until the
+// channel is unsubscribed.
+//
+// It is not safe to call Subscribe synchronously in a loop that processes
+// messages from a subscribed channel. A send into the subscribed channel will
+// block and keep Subscribe from obtaining an internal lock, resulting in a
+// deadlock.
+func (c *Client) Subscribe(msgs chan Message) error {
+	c.init()
+
+	c.chanPoolMu.Lock()
+	defer c.chanPoolMu.Unlock()
+
+	c.chanPool = append(c.chanPool, msgs)
+	return nil
+}
+
+// Unsubscribe removes a subscribed channel from this Client. After Unsubscribe
+// returns, the channel will no longer receive any messages and may safely be
+// closed. If the given channel was not previously subscribed, ErrNotSubscribed
+// will be returned.
+//
+// It is not safe to call Unsubscribe synchronously in a loop that processes
+// messages from a subscribed channel. A send into the subscribed channel will
+// block and keep Unsubscribe from obtaining an internal lock, resulting in a
+// deadlock.
+func (c *Client) Unsubscribe(msgs chan Message) error {
+	c.init()
+
+	c.chanPoolMu.Lock()
+	defer c.chanPoolMu.Unlock()
+
+	for i := range c.chanPool {
+		if c.chanPool[i] == msgs {
+			c.chanPool = append(c.chanPool[:i], c.chanPool[i+1:]...)
+			return nil
+		}
+	}
+
+	return ErrNotSubscribed
+}
+
 // GetMessageStream returns a newly-created channel that will receive real-time
 // Slack messages, as well as a channel that the caller may close to indicate
 // that it wishes to stop processing values. The msgs channel will be closed
@@ -89,15 +137,14 @@ func (c *Client) distribute(m *slack.MessageEvent) {
 // msgs channel until it is closed, or processing will slow down for all
 // consumers. This applies even after the done channel is closed. The intent
 // of this behavior is to prevent dropped and out-of-order messages.
+//
+// Deprecated: Use Subscribe and Unsubscribe instead.
 func (c *Client) GetMessageStream() (msgs <-chan Message, done chan<- struct{}) {
 	c.init()
 
-	c.chanPoolMu.Lock()
-	defer c.chanPoolMu.Unlock()
-
 	// Small amount of buffering to maybe speed things up a bit?
 	msgsRW, doneRW := make(chan Message, 1), make(chan struct{})
-	c.chanPool = append(c.chanPool, msgsRW)
+	c.Subscribe(msgsRW) // always returns nil
 
 	// When we get a done signal, remove this channel from the pool
 	c.wg.Add(1)
@@ -109,16 +156,7 @@ func (c *Client) GetMessageStream() (msgs <-chan Message, done chan<- struct{}) 
 		case <-c.done:
 		}
 
-		c.chanPoolMu.Lock()
-		defer c.chanPoolMu.Unlock()
-
-		for i := range c.chanPool {
-			if c.chanPool[i] == msgsRW {
-				c.chanPool = append(c.chanPool[:i], c.chanPool[i+1:]...)
-				break
-			}
-		}
-
+		c.Unsubscribe(msgsRW) // always returns nil
 		close(msgsRW)
 	}()
 
