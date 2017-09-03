@@ -19,7 +19,7 @@ func ExampleWriter() {
 	// Write a short message to a Slack channel
 
 	client := NewClient("xoxb-slack-api-token")
-	writer := &Writer{Client: client, SlackChannelID: "C12345678"}
+	writer := NewWriter(client, "C12345678", nil)
 
 	_, err := writer.Write([]byte("hi\n"))
 	if err != nil {

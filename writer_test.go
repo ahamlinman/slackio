@@ -54,12 +54,7 @@ func (c *testWriteClient) wait() {
 
 func TestWriter(t *testing.T) {
 	client := &testWriteClient{}
-
-	w := &Writer{
-		Client:         client,
-		SlackChannelID: "C12345678",
-		Batcher:        staticMockBatcher,
-	}
+	w := NewWriter(client, "C12345678", staticMockBatcher)
 
 	if _, err := w.Write([]byte("test")); err != nil {
 		t.Fatalf("unexpected Writer error: %q", err.Error())
@@ -81,24 +76,21 @@ func TestWriter(t *testing.T) {
 	}
 }
 
-func TestWriterRequiresClient(t *testing.T) {
+func TestNewWriterRequiresChannelID(t *testing.T) {
 	defer func() {
 		if err := recover(); err == nil {
-			t.Fatal("Writer did not panic with no Client")
+			t.Fatal("NewWriter did not panic with no channelID")
 		}
 	}()
 
-	w := &Writer{SlackChannelID: "C12345678"}
-	w.Write([]byte(""))
+	NewWriter(&testWriteClient{}, "", nil)
 }
 
-func TestWriterRequiresSlackChannelID(t *testing.T) {
-	defer func() {
-		if err := recover(); err == nil {
-			t.Fatal("Writer did not panic with no SlackChannelID")
-		}
-	}()
+func TestNewWriterSetsDefaultBatcher(t *testing.T) {
+	w := NewWriter(&testWriteClient{}, "C12345678", nil)
+	defer w.Close()
 
-	w := &Writer{Client: &testWriteClient{}}
-	w.Write([]byte(""))
+	if w.batcher == nil {
+		t.Fatal("NewWriter did not set a default batcher")
+	}
 }
