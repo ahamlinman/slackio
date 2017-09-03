@@ -20,50 +20,48 @@ var ErrNotSubscribed = errors.New("slackio: channel not subscribed")
 // instances. The connection is made on-demand when a method of the Client is
 // first invoked.
 type Client struct {
-	APIToken string // required
-
 	rtm        *slack.RTM
-	initOnce   sync.Once
 	wg         sync.WaitGroup
 	done       chan struct{}
 	chanPool   []chan Message
 	chanPoolMu sync.Mutex
 }
 
-// init sets up state and spawns internal goroutines for a Client. It must be
-// called at the start of every exported method.
-func (c *Client) init() {
-	c.initOnce.Do(func() {
-		if c.APIToken == "" {
-			panic("slackio: Client requires APIToken")
-		}
+// NewClient returns a new Client that connects to Slack using the given API
+// token.
+func NewClient(apiToken string) *Client {
+	if apiToken == "" {
+		panic("slackio: Client requires a non-blank API token")
+	}
 
-		c.done = make(chan struct{})
+	c := &Client{}
+	c.done = make(chan struct{})
 
-		api := slack.New(c.APIToken)
-		c.rtm = api.NewRTM()
-		go c.rtm.ManageConnection()
+	api := slack.New(apiToken)
+	c.rtm = api.NewRTM()
+	go c.rtm.ManageConnection()
 
-		c.wg.Add(1)
-		go func() {
-			defer c.wg.Done()
-			for {
-				select {
-				case evt := <-c.rtm.IncomingEvents:
-					switch data := evt.Data.(type) {
-					case *slack.InvalidAuthEvent:
-						panic("slackio: Slack API credentials are invalid")
+	c.wg.Add(1)
+	go func() {
+		defer c.wg.Done()
+		for {
+			select {
+			case evt := <-c.rtm.IncomingEvents:
+				switch data := evt.Data.(type) {
+				case *slack.InvalidAuthEvent:
+					panic("slackio: Slack API credentials are invalid")
 
-					case *slack.MessageEvent:
-						c.distribute(data)
-					}
-
-				case <-c.done:
-					return
+				case *slack.MessageEvent:
+					c.distribute(data)
 				}
+
+			case <-c.done:
+				return
 			}
-		}()
-	})
+		}
+	}()
+
+	return c
 }
 
 // distribute fans out a message to all subscribed channels.
@@ -92,8 +90,6 @@ func (c *Client) distribute(m *slack.MessageEvent) {
 // block and keep Subscribe from obtaining an internal lock, resulting in a
 // deadlock.
 func (c *Client) Subscribe(msgs chan Message) error {
-	c.init()
-
 	c.chanPoolMu.Lock()
 	defer c.chanPoolMu.Unlock()
 
@@ -111,8 +107,6 @@ func (c *Client) Subscribe(msgs chan Message) error {
 // block and keep Unsubscribe from obtaining an internal lock, resulting in a
 // deadlock.
 func (c *Client) Unsubscribe(msgs chan Message) error {
-	c.init()
-
 	c.chanPoolMu.Lock()
 	defer c.chanPoolMu.Unlock()
 
@@ -128,7 +122,6 @@ func (c *Client) Unsubscribe(msgs chan Message) error {
 
 // SendMessage sends the given Message to its associated Slack channel.
 func (c *Client) SendMessage(m Message) {
-	c.init()
 
 	msg := c.rtm.NewOutgoingMessage(m.Text, m.ChannelID)
 	c.rtm.SendMessage(msg)
@@ -137,8 +130,6 @@ func (c *Client) SendMessage(m Message) {
 // Close shuts down this Client and disconnects it from Slack, effectively
 // unsubscribing all channels from the message stream.
 func (c *Client) Close() error {
-	c.init()
-
 	close(c.done)
 	c.wg.Wait()
 	return c.rtm.Disconnect()

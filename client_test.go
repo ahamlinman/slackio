@@ -45,7 +45,6 @@ func TestDistribute(t *testing.T) {
 			ch1, ch2 := make(chan Message, 1), make(chan Message, 1)
 
 			c := Client{chanPool: []chan Message{ch1, ch2}}
-			c.initOnce.Do(func() {})
 
 			// Yes, there are three layers of types here
 			evt := slack.MessageEvent(slack.Message{Msg: tc.event})
@@ -86,7 +85,6 @@ func TestDistribute(t *testing.T) {
 
 func TestSubscribe(t *testing.T) {
 	c := &Client{}
-	c.initOnce.Do(func() {})
 
 	ch1, ch2 := make(chan Message), make(chan Message)
 	done := make(chan struct{})
@@ -111,7 +109,6 @@ func TestSubscribe(t *testing.T) {
 
 func TestUnsubscribe(t *testing.T) {
 	c := &Client{}
-	c.initOnce.Do(func() {})
 
 	ch1, ch2 := make(chan Message), make(chan Message)
 	done := make(chan struct{})
