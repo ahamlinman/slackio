@@ -2,38 +2,53 @@ package slackio
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"sync"
 	"testing"
 )
 
 type testReadClient struct {
-	messages []Message
-	wg       sync.WaitGroup
+	messages  []Message
+	wg        sync.WaitGroup
+	doneChans map[chan Message]chan struct{}
 }
 
-func (c *testReadClient) GetMessageStream() (<-chan Message, chan<- struct{}) {
-	outCh, doneCh := make(chan Message), make(chan struct{})
+// Subscribe in this test implementation just sends a predefined set of
+// messages into a channel.
+func (c *testReadClient) Subscribe(ch chan Message) error {
+	if c.doneChans == nil {
+		c.doneChans = make(map[chan Message]chan struct{})
+	}
+
+	done := make(chan struct{})
+	c.doneChans[ch] = done
 
 	c.wg.Add(1)
 	go func() {
+		defer c.wg.Done()
+		defer close(done)
+
 		for _, m := range c.messages {
-			outCh <- m
+			ch <- m
 		}
-		close(outCh)
-		c.wg.Done()
 	}()
 
-	// Note that this mock implementation of GetMessageStream depends on the
-	// caller closing the done channel. In general this is not required when the
-	// message stream is closed first.
-	c.wg.Add(1)
-	go func() {
-		<-doneCh
-		c.wg.Done()
-	}()
+	return nil
+}
 
-	return outCh, doneCh
+// Unsubscribe in this test implementation blocks until Subscribe is done
+// sending messages. This is strictly valid, and helps ensure that Reader fully
+// drains the channel until the unsubscription is complete.
+func (c *testReadClient) Unsubscribe(ch chan Message) error {
+	done := c.doneChans[ch]
+	if done == nil {
+		return errors.New("channel not subscribed")
+	}
+
+	<-done
+	delete(c.doneChans, ch)
+	return nil
 }
 
 func (c *testReadClient) wait() {
@@ -74,7 +89,7 @@ func TestReader(t *testing.T) {
 	}
 
 	client.wait()
-	// Test times out if Reader fails to close done channel.
+	// Test times out if Reader fails to stop properly
 }
 
 func TestSingleChannelReader(t *testing.T) {
@@ -115,10 +130,10 @@ func TestSingleChannelReader(t *testing.T) {
 	}
 
 	client.wait()
-	// Test times out if Reader fails to close done channel.
+	// Test times out if Reader fails to stop properly
 }
 
-func TestReaderDrainsGetMessageStream(t *testing.T) {
+func TestReaderDrainsSubscribedChannel(t *testing.T) {
 	client := &testReadClient{
 		messages: []Message{
 			{
@@ -143,7 +158,8 @@ func TestReaderDrainsGetMessageStream(t *testing.T) {
 		t.Fatalf("unexpected Reader error: %q", err.Error())
 	}
 
-	// Notice that subsequent messages are not read prior to closure.
+	// Notice that subsequent messages are not read prior to closure. Reader must
+	// drain these properly, or client.wait() will time out forever.
 
 	if err := r.Close(); err != nil {
 		t.Fatalf("unexpected Reader error: %q", err.Error())
@@ -154,7 +170,7 @@ func TestReaderDrainsGetMessageStream(t *testing.T) {
 	}
 
 	client.wait()
-	// Test times out if Reader fails to close done channel.
+	// Test times out if Reader fails to stop properly
 }
 
 func TestReaderRequiresClient(t *testing.T) {

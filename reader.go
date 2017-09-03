@@ -6,10 +6,11 @@ import (
 	"sync"
 )
 
-// ReadClient represents objects that can provide a stream of slackio Messages.
-// Note that in slackio, Client implements this interface.
+// ReadClient represents objects that allow subscription to a stream of slackio
+// Messages. Note that in slackio, Client implements this interface.
 type ReadClient interface {
-	GetMessageStream() (<-chan Message, chan<- struct{})
+	Subscribe(chan Message) error
+	Unsubscribe(chan Message) error
 }
 
 // Reader reads messages from the main body of one or more Slack channels.
@@ -18,8 +19,7 @@ type Reader struct {
 	SlackChannelID string     // optional; filters by Slack channel if provided
 
 	initOnce sync.Once
-	stopOnce sync.Once
-	done     chan struct{}
+	msgCh    chan Message
 	wg       sync.WaitGroup
 	readOut  io.ReadCloser
 	readIn   io.WriteCloser
@@ -33,18 +33,18 @@ func (c *Reader) init() {
 			panic(errors.New("slackio: Client is required for Reader"))
 		}
 
-		c.done = make(chan struct{})
 		c.readOut, c.readIn = io.Pipe()
 
+		c.msgCh = make(chan Message, 1)
+		c.Client.Subscribe(c.msgCh)
+
 		// Process incoming reads from the Client; note that the stream channel
-		// will be drained until it is closed, as required by GetMessageStream.
-		streamCh, streamDoneCh := c.Client.GetMessageStream()
+		// will be drained until it is closed
 		c.wg.Add(1)
 		go func() {
 			defer c.wg.Done()
-			defer c.stop()
 
-			for msg := range streamCh {
+			for msg := range c.msgCh {
 				if c.SlackChannelID != "" && msg.ChannelID != c.SlackChannelID {
 					continue
 				}
@@ -55,25 +55,6 @@ func (c *Reader) init() {
 				}
 			}
 		}()
-
-		// Close Client's done channel when we stop
-		c.wg.Add(1)
-		go func() {
-			<-c.done
-			close(streamDoneCh)
-			c.wg.Done()
-		}()
-	})
-}
-
-// stop shuts down this Reader and allows internal goroutines to terminate.
-func (c *Reader) stop() {
-	c.stopOnce.Do(func() {
-		close(c.done)
-
-		// Closing the write half of the pipe forces Read to return EOF and Write
-		// to return ErrClosedPipe. The call itself always returns nil.
-		c.readIn.Close()
 	})
 }
 
@@ -89,11 +70,20 @@ func (c *Reader) Read(p []byte) (int, error) {
 // Close disconnects this Reader from Slack and shuts down internal buffers.
 // After calling Close, the next call to Read will result in an EOF.
 func (c *Reader) Close() error {
+	// Yes, init right before we stop is dumb. But it's easier to reason about.
 	c.init()
 
-	// Yes, init right before stop is dumb. But it's easier to reason about.
+	if err := c.Client.Unsubscribe(c.msgCh); err != nil {
+		// Should only happen if we somehow did not subscribe; currently this has
+		// to be some kind of catastrophic situation.
+		panic(err)
+	}
 
-	c.stop()
+	// Closing the write half of the pipe forces Read to return EOF and Write
+	// to return ErrClosedPipe. The call itself always returns nil.
+	c.readIn.Close()
+	close(c.msgCh)
 	c.wg.Wait()
+
 	return nil
 }
