@@ -66,8 +66,7 @@ func (c *Client) init() {
 	})
 }
 
-// distribute fans out a message to the channels that have been created using
-// GetMessageStream.
+// distribute fans out a message to all subscribed channels.
 func (c *Client) distribute(m *slack.MessageEvent) {
 	if m.Type != "message" ||
 		m.ReplyTo > 0 ||
@@ -127,42 +126,6 @@ func (c *Client) Unsubscribe(msgs chan Message) error {
 	return ErrNotSubscribed
 }
 
-// GetMessageStream returns a newly-created channel that will receive real-time
-// Slack messages, as well as a channel that the caller may close to indicate
-// that it wishes to stop processing values. The msgs channel will be closed
-// when the associated Client is closed, or some time after done is closed.
-//
-// The returned channel includes a small buffer, but all sends into it are
-// blocking. The caller MUST continuously receive and process values from the
-// msgs channel until it is closed, or processing will slow down for all
-// consumers. This applies even after the done channel is closed. The intent
-// of this behavior is to prevent dropped and out-of-order messages.
-//
-// Deprecated: Use Subscribe and Unsubscribe instead.
-func (c *Client) GetMessageStream() (msgs <-chan Message, done chan<- struct{}) {
-	c.init()
-
-	// Small amount of buffering to maybe speed things up a bit?
-	msgsRW, doneRW := make(chan Message, 1), make(chan struct{})
-	c.Subscribe(msgsRW) // always returns nil
-
-	// When we get a done signal, remove this channel from the pool
-	c.wg.Add(1)
-	go func() {
-		defer c.wg.Done()
-
-		select {
-		case <-doneRW:
-		case <-c.done:
-		}
-
-		c.Unsubscribe(msgsRW) // always returns nil
-		close(msgsRW)
-	}()
-
-	return msgsRW, doneRW
-}
-
 // SendMessage sends the given Message to its associated Slack channel.
 func (c *Client) SendMessage(m Message) {
 	c.init()
@@ -171,19 +134,12 @@ func (c *Client) SendMessage(m Message) {
 	c.rtm.SendMessage(msg)
 }
 
-// Close shuts down this Client and closes all channels that have been created
-// from it using GetMessageStream, blocking until these closures are finished.
-// The behavior of other Client methods after Close has returned is undefined.
+// Close shuts down this Client and disconnects it from Slack, effectively
+// unsubscribing all channels from the message stream.
 func (c *Client) Close() error {
 	c.init()
 
 	close(c.done)
 	c.wg.Wait()
-
-	// Allow unit testing of the closure logic
-	if c.rtm != nil {
-		return c.rtm.Disconnect()
-	}
-
-	return nil
+	return c.rtm.Disconnect()
 }
