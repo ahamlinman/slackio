@@ -10,7 +10,7 @@ func ExampleReader() {
 	// Stream messages from all of a user's Slack channels to stdout
 
 	client := NewClient("xoxb-slack-api-token")
-	reader := &Reader{Client: client}
+	reader := NewReader(client, "")
 
 	io.Copy(os.Stdout, reader)
 }

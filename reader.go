@@ -1,7 +1,6 @@
 package slackio
 
 import (
-	"errors"
 	"io"
 	"sync"
 )
@@ -15,47 +14,46 @@ type ReadClient interface {
 
 // Reader reads messages from the main body of one or more Slack channels.
 type Reader struct {
-	Client         ReadClient // required
-	SlackChannelID string     // optional; filters by Slack channel if provided
-
-	initOnce sync.Once
-	msgCh    chan Message
-	wg       sync.WaitGroup
-	readOut  io.ReadCloser
-	readIn   io.WriteCloser
+	client    ReadClient
+	channelID string
+	msgCh     chan Message
+	wg        sync.WaitGroup
+	readOut   io.ReadCloser
+	readIn    io.WriteCloser
 }
 
-// init initializes internal state and spawns internal goroutines for a Reader.
-// It must be called at the beginning of all other Reader methods.
-func (c *Reader) init() {
-	c.initOnce.Do(func() {
-		if c.Client == nil {
-			panic(errors.New("slackio: Client is required for Reader"))
-		}
+// NewReader returns a new Reader. If channelID is non-blank, the Reader will
+// only output text from a single channel. Otherwise, it will output text from
+// all channels together in a single stream.
+func NewReader(client ReadClient, channelID string) *Reader {
+	c := &Reader{
+		client:    client,
+		channelID: channelID,
+		msgCh:     make(chan Message, 1),
+	}
 
-		c.readOut, c.readIn = io.Pipe()
+	c.readOut, c.readIn = io.Pipe()
+	c.client.Subscribe(c.msgCh)
 
-		c.msgCh = make(chan Message, 1)
-		c.Client.Subscribe(c.msgCh)
+	// Process incoming reads from the Client; note that the stream channel
+	// will be drained until it is closed
+	c.wg.Add(1)
+	go func() {
+		defer c.wg.Done()
 
-		// Process incoming reads from the Client; note that the stream channel
-		// will be drained until it is closed
-		c.wg.Add(1)
-		go func() {
-			defer c.wg.Done()
-
-			for msg := range c.msgCh {
-				if c.SlackChannelID != "" && msg.ChannelID != c.SlackChannelID {
-					continue
-				}
-
-				_, err := c.readIn.Write(append([]byte(msg.Text), byte('\n')))
-				if err != nil && err != io.ErrClosedPipe {
-					panic(err)
-				}
+		for msg := range c.msgCh {
+			if c.channelID != "" && msg.ChannelID != c.channelID {
+				continue
 			}
-		}()
-	})
+
+			_, err := c.readIn.Write(append([]byte(msg.Text), byte('\n')))
+			if err != nil && err != io.ErrClosedPipe {
+				panic(err)
+			}
+		}
+	}()
+
+	return c
 }
 
 // Read returns text from the main body of one or more Slack channels (i.e.
@@ -63,17 +61,13 @@ func (c *Reader) init() {
 // with an appended newline. Messages with explicit line breaks are equivalent
 // to multiple single messages in succession.
 func (c *Reader) Read(p []byte) (int, error) {
-	c.init()
 	return c.readOut.Read(p)
 }
 
 // Close disconnects this Reader from Slack and shuts down internal buffers.
 // After calling Close, the next call to Read will result in an EOF.
 func (c *Reader) Close() error {
-	// Yes, init right before we stop is dumb. But it's easier to reason about.
-	c.init()
-
-	if err := c.Client.Unsubscribe(c.msgCh); err != nil {
+	if err := c.client.Unsubscribe(c.msgCh); err != nil {
 		// Should only happen if we somehow did not subscribe; currently this has
 		// to be some kind of catastrophic situation.
 		panic(err)

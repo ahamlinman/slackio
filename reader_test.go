@@ -69,7 +69,7 @@ func TestReader(t *testing.T) {
 		},
 	}
 
-	r := &Reader{Client: client}
+	r := NewReader(client, "")
 	var readBytes [16]byte
 
 	expected := [][]byte{[]byte("a message\n"), []byte("and another\n")}
@@ -110,7 +110,7 @@ func TestSingleChannelReader(t *testing.T) {
 		},
 	}
 
-	r := &Reader{Client: client, SlackChannelID: "C12345678"}
+	r := NewReader(client, "C12345678")
 	var readBytes [16]byte
 
 	expected := [][]byte{[]byte("a message\n"), []byte("and another\n")}
@@ -151,7 +151,7 @@ func TestReaderDrainsSubscribedChannel(t *testing.T) {
 		},
 	}
 
-	r := &Reader{Client: client}
+	r := NewReader(client, "")
 	var readBytes [16]byte
 
 	if _, err := r.Read(readBytes[:]); err != nil {
@@ -171,16 +171,4 @@ func TestReaderDrainsSubscribedChannel(t *testing.T) {
 
 	client.wait()
 	// Test times out if Reader fails to stop properly
-}
-
-func TestReaderRequiresClient(t *testing.T) {
-	defer func() {
-		if err := recover(); err == nil {
-			t.Fatal("Reader did not panic with no Client")
-		}
-	}()
-
-	r := &Reader{}
-	var readBytes [1]byte
-	r.Read(readBytes[:])
 }
