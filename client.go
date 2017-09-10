@@ -13,6 +13,10 @@ import (
 // for each Client instance.
 const messageQueueSize = 16
 
+// ErrAlreadySubscribed is returned when an attempt is made to subscribe a
+// channel that already has a subscription.
+var ErrAlreadySubscribed = errors.New("slackio: channel already subscribed")
+
 // ErrNotSubscribed is returned when an attempt is made to unsubscribe a
 // channel that is not currently subscribed.
 var ErrNotSubscribed = errors.New("slackio: channel not subscribed")
@@ -130,10 +134,13 @@ func (c *Client) Subscribe(ch chan Message) error {
 //
 // Subscriptions using IDs that have not yet appeared in the stream are
 // supported. The subscription will begin once a new message has been assigned
-// the requested ID.
+// the requested ID and inserted into the stream.
 //
 // As a special case, a negative ID will begin the subscription immediately
 // after the latest message in the stream.
+//
+// If the given channel already has an active subscription,
+// ErrAlreadySubscribed will be returned.
 func (c *Client) SubscribeAt(id int, ch chan Message) error {
 	if id < 0 {
 		c.messagesLock.RLock()
@@ -143,6 +150,10 @@ func (c *Client) SubscribeAt(id int, ch chan Message) error {
 
 	c.subsLock.Lock()
 	defer c.subsLock.Unlock()
+
+	if _, ok := c.subs[ch]; ok {
+		return ErrAlreadySubscribed
+	}
 
 	c.subs[ch] = newSubscription(c, id, ch)
 	return nil
