@@ -7,7 +7,7 @@ import (
 	"github.com/nlopes/slack"
 )
 
-func TestDistribute(t *testing.T) {
+func TestDistributeFiltering(t *testing.T) {
 	cases := []struct {
 		description string
 		event       slack.Msg
@@ -42,8 +42,7 @@ func TestDistribute(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.description, func(t *testing.T) {
-			c := &Client{}
-			c.messagesCond = sync.NewCond(c.messagesLock.RLocker())
+			c := initClient()
 
 			// Yes, there are three layers of types here
 			evt := slack.MessageEvent(slack.Message{Msg: tc.event})
@@ -69,5 +68,97 @@ func TestDistribute(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestDistributeRollover(t *testing.T) {
+	msg := slack.Msg{Type: "message", Channel: "C12345678", Text: "hi"}
+	evt := slack.MessageEvent(slack.Message{Msg: msg})
+
+	c := initClient()
+	for i := 0; i < messageQueueSize+1; i++ {
+		c.distribute(&evt)
+	}
+
+	if len(c.messages) != messageQueueSize {
+		t.Errorf("unexpected message queue size %d (expected %d)", len(c.messages), messageQueueSize)
+	}
+
+	if c.messages[0].ID != 1 {
+		t.Errorf("unexpected message ID at start of queue: %d (expected 1)", c.messages[0].ID)
+	}
+}
+
+func TestSubscriptionOperations(t *testing.T) {
+	// Yes, this test rolls up SubscribeAt, Subscribe, and Unsubscribe all into
+	// one case. This is done because the operations are all so interrelated, and
+	// it's faster for me to write. Might be worth refactoring later.
+
+	c := initClient()
+	ch1, ch2 := make(chan Message), make(chan Message)
+	var subWait sync.WaitGroup
+
+	// Notice that multiple subscription operations can run concurrently. This
+	// helps the race detector catch errors.
+
+	subWait.Add(1)
+	go func() {
+		defer subWait.Done()
+
+		if err := c.SubscribeAt(2, ch1); err != nil {
+			t.Fatalf("unexpected error on valid subscription: %s", err.Error())
+		}
+
+		if err := c.SubscribeAt(3, ch1); err != ErrAlreadySubscribed {
+			t.Fatalf("unexpected error on duplicate subscription: %v", err)
+		}
+	}()
+
+	subWait.Add(1)
+	go func() {
+		defer subWait.Done()
+
+		if err := c.Subscribe(ch2); err != nil {
+			t.Fatalf("unexpected error on valid subscription: %s", err.Error())
+		}
+
+		if err := c.Subscribe(ch2); err != ErrAlreadySubscribed {
+			t.Fatalf("unexpected error on duplicate subscription: %v", err)
+		}
+
+		// Not going to claim this is clean, but I want to validate it somehow...
+		if c.subs[ch2].id != c.nextMessageID {
+			t.Fatalf("unexpected default subscription ID %d", c.subs[ch2].id)
+		}
+	}()
+
+	subWait.Wait()
+
+	if len(c.subs) != 2 {
+		t.Fatalf("unexpected subscription pool length %d (expected 2)", len(c.subs))
+	}
+
+	var unsubWait sync.WaitGroup
+	unsub := func(ch chan Message) {
+		defer unsubWait.Done()
+
+		if err := c.Unsubscribe(ch); err != nil {
+			t.Fatalf("unexpected unsubscribe error: %s", err.Error())
+		}
+	}
+
+	// Again, notice the concurrency.
+
+	unsubWait.Add(2)
+	go unsub(ch1)
+	go unsub(ch2)
+	unsubWait.Wait()
+
+	if err := c.Unsubscribe(ch1); err != ErrNotSubscribed {
+		t.Fatalf("unexpected duplicate unsubscribe error: %v", err)
+	}
+
+	if len(c.subs) != 0 {
+		t.Fatalf("unexpected subscription pool length %d (expected 0)", len(c.subs))
 	}
 }

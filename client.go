@@ -53,10 +53,7 @@ func NewClient(apiToken string) *Client {
 		panic("slackio: Client requires a non-blank API token")
 	}
 
-	c := &Client{}
-	c.done = make(chan struct{})
-	c.messagesCond = sync.NewCond(c.messagesLock.RLocker())
-	c.subs = make(map[chan<- Message]*subscription)
+	c := initClient()
 
 	api := slack.New(apiToken)
 	c.rtm = api.NewRTM()
@@ -81,6 +78,18 @@ func NewClient(apiToken string) *Client {
 			}
 		}
 	}()
+
+	return c
+}
+
+// initClient returns a Client with basic fields initialized. It mainly helps
+// remove a bit of boilerplate from tests.
+func initClient() *Client {
+	c := &Client{}
+
+	c.done = make(chan struct{})
+	c.messagesCond = sync.NewCond(c.messagesLock.RLocker())
+	c.subs = make(map[chan<- Message]*subscription)
 
 	return c
 }
