@@ -49,19 +49,18 @@ func (s *subscription) process() {
 		s.client.messagesLock.RLock()
 
 		if len(s.client.messages) > 0 {
-			// Check if we are trying to get a past message. If so, this consumer has
-			// fallen way behind, and we will skip them to the end of the queue. This
-			// could arguably be handled better, but it should be a rare case.
+			// Check if we are trying to get a message that was rotated out of the
+			// queue. If so, this consumer has fallen way behind and we will skip
+			// them to the earliest message still in the queue. Message IDs will
+			// indicate that the skip happened.
 			if s.id < s.client.messages[0].ID {
-				s.id = s.client.messages[len(s.client.messages)-1].ID + 1
-				s.client.messagesLock.RUnlock()
-				continue
+				s.id = s.client.messages[0].ID
 			}
 
 			// Next, check if the message we are trying to get is in the queue right
 			// now. If so, pick it out and send it to the consumer (making sure not
-			// to leave the queue locked, in case the send blocks). Then prepare to
-			// move on to the next message in line.
+			// to leave the queue locked, in case the send blocks). Then move on to
+			// the next message in line.
 			if s.id <= s.client.messages[len(s.client.messages)-1].ID {
 				idx := s.id - s.client.messages[0].ID
 				msg := s.client.messages[idx]
@@ -95,9 +94,9 @@ func (s *subscription) process() {
 		case <-s.done:
 		}
 
-		// It is possible that our message has arrived at this point. But if not,
-		// we will simply come back and wait again as long as the subscription is
-		// active.
+		// It is *possible* that our message has arrived at this point. If it
+		// hasn't, we will simply come back and wait again as long as the
+		// subscription is active.
 	}
 }
 

@@ -17,18 +17,15 @@ const messageQueueSize = 16
 // channel that is not currently subscribed.
 var ErrNotSubscribed = errors.New("slackio: channel not subscribed")
 
-// ErrSubscriptionOutOfRange is returned when subscribing to a point in the
-// stream that no longer exists.
-var ErrSubscriptionOutOfRange = errors.New("slackio: subscription out of range")
-
 // Client implements an ability to send and receive Slack messages using a
-// real-time API. It provides the underlying functionality for Reader and
-// Writer.
+// real-time API. For readers, it presents a long-running stream of a user's
+// incoming Slack messages that may be consumed using multiple independent
+// channels. For writers, it allows instant sending of a message to a given
+// channel.
 //
 // A Client instance encapsulates a WebSocket connection to Slack. Users of
 // slackio should create a single Client and share it across Reader and Writer
-// instances. The connection is made on-demand when a method of the Client is
-// first invoked.
+// instances.
 type Client struct {
 	rtm *slack.RTM
 
@@ -44,8 +41,9 @@ type Client struct {
 	subsLock sync.Mutex
 }
 
-// NewClient returns a new Client that connects to Slack using the given API
-// token.
+// NewClient returns a new Client and connects it to Slack using the given API
+// token. Invalid API tokens will result in an panic while attempting to
+// establish the connection.
 func NewClient(apiToken string) *Client {
 	if apiToken == "" {
 		panic("slackio: Client requires a non-blank API token")
@@ -110,33 +108,37 @@ func (c *Client) distribute(m *slack.MessageEvent) {
 	c.messagesCond.Broadcast()
 }
 
-// Subscribe adds a channel to this Client. After Subscribe returns, the
-// channel will begin receiving an unbounded stream of Messages until the
-// channel is unsubscribed. See the SubscribeAt documentation for more details.
+// Subscribe creates a new subscription for the given channel within this
+// Client, starting immediately after the latest message in the client's
+// overall message stream. See the SubscribeAt documentation for more details.
 func (c *Client) Subscribe(ch chan Message) error {
 	return c.SubscribeAt(-1, ch)
 }
 
-// SubscribeAt adds a channel to this Client in a manner similar to Subscribe,
-// but begins the subscription at a specified point in the message stream. This
-// start point is indicated by the monotonically increasing ID contained within
-// each Message.
+// SubscribeAt creates a new subscription for the given channel within this
+// Client, starting at the specified point in the client's overall message
+// stream. Each message sent into the channel will have an ID indicating its
+// relative position in the stream. IDs begin at 0 and increment by 1 for each
+// new message, and are unique within a single Client instance.
 //
-// SubscribeAt supports subscriptions arbitrarily far into the future of the
-// stream. In this case the subscriber will wait until a message with that ID
-// has been received. However, only a fixed number of past messages are kept in
-// the stream. If the message with the requested ID is no longer available,
-// ErrSubscriptionOutOfRange will be returned. As a special case, a negative ID
-// will start the subscription immediately after the most recent message.
+// Each Client maintains a bounded number of past messages from the overall
+// stream. If a subscriber falls behind this buffer, or is subscribed using an
+// ID that is no longer in the buffer, that subscriber will transparently be
+// skipped forward to the earliest message still remaining in the buffer. All
+// intervening messages will be lost. If necessary, subscribers can detect this
+// behavior by watching for message ID increases larger than 1.
+//
+// Subscriptions using IDs that have not yet appeared in the stream are
+// supported. The subscription will begin once a new message has been assigned
+// the requested ID.
+//
+// As a special case, a negative ID will begin the subscription immediately
+// after the latest message in the stream.
 func (c *Client) SubscribeAt(id int, ch chan Message) error {
 	if id < 0 {
 		c.messagesLock.RLock()
 		id = c.nextMessageID
 		c.messagesLock.RUnlock()
-	}
-
-	if len(c.messages) > 0 && id < c.messages[0].ID {
-		return ErrSubscriptionOutOfRange
 	}
 
 	c.subsLock.Lock()
@@ -146,10 +148,10 @@ func (c *Client) SubscribeAt(id int, ch chan Message) error {
 	return nil
 }
 
-// Unsubscribe removes a subscribed channel from this Client. After Unsubscribe
-// returns, the channel will no longer receive any messages and may safely be
-// closed. If the given channel was not previously subscribed, ErrNotSubscribed
-// will be returned.
+// Unsubscribe terminates the subscription for the given channel within this
+// Client. After Unsubscribe returns, the channel will no longer receive any
+// messages and may safely be closed. If the given channel was not previously
+// subscribed, ErrNotSubscribed will be returned.
 func (c *Client) Unsubscribe(ch chan Message) error {
 	c.subsLock.Lock()
 	defer c.subsLock.Unlock()
@@ -169,9 +171,9 @@ func (c *Client) SendMessage(m Message) {
 	c.rtm.SendMessage(msg)
 }
 
-// Close unsubscribes all subscribed channels and disconnects from Slack. The
-// behavior of Subscribe, SubscribeAt, and Unsubscribe for a closed Client is
-// undefined.
+// Close terminates all subscriptions within this Client and disconnects from
+// Slack. The behavior of Subscribe, SubscribeAt, and Unsubscribe for a closed
+// Client is undefined.
 func (c *Client) Close() error {
 	close(c.done)
 	c.wg.Wait()
@@ -183,8 +185,8 @@ func (c *Client) Close() error {
 		sub.stop()
 	}
 
-	// Subscriptions wait on new messages in a goroutine. This final post-closure
-	// Broadcast terminates those goroutines if they exist (see subscription.go).
+	// Unblock any subscribers waiting for a new message and allow them to
+	// terminate.
 	c.messagesCond.Broadcast()
 
 	return c.rtm.Disconnect()
