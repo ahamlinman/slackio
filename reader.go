@@ -8,8 +8,8 @@ import (
 // ReadClient represents objects that allow subscription to a stream of slackio
 // Messages. Note that in slackio, Client implements this interface.
 type ReadClient interface {
-	Subscribe(chan Message) error
-	Unsubscribe(chan Message) error
+	Subscribe(chan<- Message) error
+	Unsubscribe(chan<- Message) error
 }
 
 // Reader reads messages from the main body of one or more Slack channels.

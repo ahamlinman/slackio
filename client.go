@@ -41,7 +41,7 @@ type Client struct {
 	messagesCond  *sync.Cond
 	nextMessageID int
 
-	subs     map[chan Message]*subscription
+	subs     map[chan<- Message]*subscription
 	subsLock sync.Mutex
 }
 
@@ -56,7 +56,7 @@ func NewClient(apiToken string) *Client {
 	c := &Client{}
 	c.done = make(chan struct{})
 	c.messagesCond = sync.NewCond(c.messagesLock.RLocker())
-	c.subs = make(map[chan Message]*subscription)
+	c.subs = make(map[chan<- Message]*subscription)
 
 	api := slack.New(apiToken)
 	c.rtm = api.NewRTM()
@@ -115,7 +115,7 @@ func (c *Client) distribute(m *slack.MessageEvent) {
 // Subscribe creates a new subscription for the given channel within this
 // Client, starting immediately after the latest message in the client's
 // overall message stream. See the SubscribeAt documentation for more details.
-func (c *Client) Subscribe(ch chan Message) error {
+func (c *Client) Subscribe(ch chan<- Message) error {
 	return c.SubscribeAt(-1, ch)
 }
 
@@ -141,7 +141,7 @@ func (c *Client) Subscribe(ch chan Message) error {
 //
 // If the given channel already has an active subscription,
 // ErrAlreadySubscribed will be returned.
-func (c *Client) SubscribeAt(id int, ch chan Message) error {
+func (c *Client) SubscribeAt(id int, ch chan<- Message) error {
 	if id < 0 {
 		c.messagesLock.RLock()
 		id = c.nextMessageID
@@ -163,7 +163,7 @@ func (c *Client) SubscribeAt(id int, ch chan Message) error {
 // Client. After Unsubscribe returns, the channel will no longer receive any
 // messages and may safely be closed. If the given channel was not previously
 // subscribed, ErrNotSubscribed will be returned.
-func (c *Client) Unsubscribe(ch chan Message) error {
+func (c *Client) Unsubscribe(ch chan<- Message) error {
 	c.subsLock.Lock()
 	defer c.subsLock.Unlock()
 

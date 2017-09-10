@@ -7,12 +7,12 @@ import "sync"
 type subscription struct {
 	client *Client
 	id     int
-	ch     chan Message
+	ch     chan<- Message
 	done   chan struct{}
 	wg     sync.WaitGroup
 }
 
-func newSubscription(client *Client, id int, ch chan Message) *subscription {
+func newSubscription(client *Client, id int, ch chan<- Message) *subscription {
 	s := &subscription{
 		client: client,
 		id:     id,

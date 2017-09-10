@@ -11,14 +11,14 @@ import (
 type testReadClient struct {
 	messages  []Message
 	wg        sync.WaitGroup
-	doneChans map[chan Message]chan struct{}
+	doneChans map[chan<- Message]chan struct{}
 }
 
 // Subscribe in this test implementation just sends a predefined set of
 // messages into a channel.
-func (c *testReadClient) Subscribe(ch chan Message) error {
+func (c *testReadClient) Subscribe(ch chan<- Message) error {
 	if c.doneChans == nil {
-		c.doneChans = make(map[chan Message]chan struct{})
+		c.doneChans = make(map[chan<- Message]chan struct{})
 	}
 
 	done := make(chan struct{})
@@ -40,7 +40,7 @@ func (c *testReadClient) Subscribe(ch chan Message) error {
 // Unsubscribe in this test implementation blocks until Subscribe is done
 // sending messages. This is strictly valid, and helps ensure that Reader fully
 // drains the channel until the unsubscription is complete.
-func (c *testReadClient) Unsubscribe(ch chan Message) error {
+func (c *testReadClient) Unsubscribe(ch chan<- Message) error {
 	done := c.doneChans[ch]
 	if done == nil {
 		return errors.New("channel not subscribed")
