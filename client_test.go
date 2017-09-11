@@ -166,3 +166,51 @@ func TestSubscriptionOperations(t *testing.T) {
 		t.Fatalf("unexpected subscription pool length %d (expected 0)", len(c.subs))
 	}
 }
+
+func TestClientClose(t *testing.T) {
+	c := initClient()
+	n := 3
+
+	chans := make([]chan Message, n)
+	for i := 0; i < n; i++ {
+		chans[i] = make(chan Message)
+		c.Subscribe(chans[i])
+	}
+
+	i := 0
+	subs := make([]*subscription, n)
+	for _, sub := range c.subs {
+		subs[i] = sub
+		i++
+	}
+
+	// This helps us test that the final unblocking Broadcast call gets made.
+	finalBroadcastCh := make(chan struct{})
+	go func() {
+		c.messagesLock.RLock()
+		finalBroadcastCh <- struct{}{}
+		c.messagesCond.Wait()
+		c.messagesLock.RUnlock()
+		close(finalBroadcastCh)
+	}()
+
+	// Guarantee that the goroutine above is blocked in the Wait call. We can't
+	// get the write lock until Wait forces release of the read lock.
+	<-finalBroadcastCh
+	c.messagesLock.Lock()
+	c.messagesLock.Unlock()
+
+	// Here we go...
+	if err := c.Close(); err != nil {
+		t.Fatalf("unexpected Close error: %s", err.Error())
+	}
+
+	for _, sub := range subs {
+		if sub.active() {
+			t.Fatal("subscription reported itself active after Close")
+		}
+	}
+
+	// If the final Broadcast isn't performed, this will time out.
+	<-finalBroadcastCh
+}

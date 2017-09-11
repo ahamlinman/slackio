@@ -209,5 +209,10 @@ func (c *Client) Close() error {
 	// terminate.
 	c.messagesCond.Broadcast()
 
-	return c.rtm.Disconnect()
+	// Allow for unit testing of the above subscription-related logic.
+	if c.rtm != nil {
+		return c.rtm.Disconnect()
+	}
+
+	return nil
 }
