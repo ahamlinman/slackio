@@ -126,6 +126,10 @@ func TestSubscriptionOperations(t *testing.T) {
 			t.Fatalf("unexpected error on duplicate subscription: %v", err)
 		}
 
+		// Be careful, we need to sync with the above goroutine!
+		c.subsLock.Lock()
+		defer c.subsLock.Unlock()
+
 		// Not going to claim this is clean, but I want to validate it somehow...
 		if c.subs[ch2].id != c.nextMessageID {
 			t.Fatalf("unexpected default subscription ID %d", c.subs[ch2].id)
