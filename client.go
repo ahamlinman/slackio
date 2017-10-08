@@ -46,7 +46,7 @@ type Client struct {
 }
 
 // NewClient returns a new Client and connects it to Slack using the given API
-// token. Invalid API tokens will result in an panic while attempting to
+// token. Invalid API tokens will result in a panic while attempting to
 // establish the connection.
 func NewClient(apiToken string) *Client {
 	if apiToken == "" {
