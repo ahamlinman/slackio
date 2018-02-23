@@ -11,8 +11,8 @@ and [io.Writer] interfaces.
 
 ## Development
 
-0. `git clone https://github.com/ahamlinman/slackio.git`
-0. `make test`, etc.
+1. `git clone https://github.com/ahamlinman/slackio.git`
+1. `make test`, etc.
 
 ## Status and Stability
 
