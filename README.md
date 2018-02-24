@@ -9,6 +9,15 @@ and [io.Writer] interfaces.
 [io.Reader]: https://golang.org/pkg/io/#Reader
 [io.Writer]: https://golang.org/pkg/io/#Writer
 
+## Usage
+
+It is recommended that you manage your project's dependencies with [`dep`].
+This repository includes a manifest with tested versions of slackio's
+underlying dependencies, which `dep` will respect when including slackio as a
+dependency.
+
+[`dep`]: https://github.com/golang/dep
+
 ## Development
 
 1. `git clone https://github.com/ahamlinman/slackio.git`
