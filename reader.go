@@ -46,10 +46,10 @@ func NewReader(client ReadClient, channelID string) *Reader {
 				continue
 			}
 
-			_, err := c.readIn.Write(append([]byte(msg.Text), byte('\n')))
-			if err != nil && err != io.ErrClosedPipe {
-				panic(err)
-			}
+			// When this Reader is closed, this call returns an io.ErrClosedPipe.
+			// This is the only possible error if we don't close readOut, and it can
+			// be safely ignored.
+			c.readIn.Write(append([]byte(msg.Text), byte('\n')))
 		}
 	}()
 
@@ -68,8 +68,8 @@ func (c *Reader) Read(p []byte) (int, error) {
 // After calling Close, the next call to Read will result in an EOF.
 func (c *Reader) Close() error {
 	if err := c.client.Unsubscribe(c.msgCh); err != nil {
-		// Should only happen if we somehow did not subscribe; currently this has
-		// to be some kind of catastrophic situation.
+		// This is a catastrophic situation likely indicating corruption of the
+		// Client's subscription pool.
 		panic(err)
 	}
 

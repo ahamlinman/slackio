@@ -12,6 +12,7 @@ type testReadClient struct {
 	messages  []Message
 	wg        sync.WaitGroup
 	doneChans map[chan<- Message]chan struct{}
+	unsubErr  error
 }
 
 // Subscribe in this test implementation just sends a predefined set of
@@ -48,7 +49,7 @@ func (c *testReadClient) Unsubscribe(ch chan<- Message) error {
 
 	<-done
 	delete(c.doneChans, ch)
-	return nil
+	return c.unsubErr
 }
 
 func (c *testReadClient) wait() {
@@ -171,4 +172,18 @@ func TestReaderDrainsSubscribedChannel(t *testing.T) {
 
 	client.wait()
 	// Test times out if Reader fails to stop properly
+}
+
+func TestReaderPanicsOnUnsubscribeError(t *testing.T) {
+	unsubErr := errors.New("test Unsubscribe error")
+
+	defer func() {
+		if err := recover(); err != unsubErr {
+			t.Fatalf("unexpected Reader panic on Unsubscribe error: %v", err)
+		}
+	}()
+
+	client := &testReadClient{unsubErr: unsubErr}
+	r := NewReader(client, "")
+	r.Close()
 }
