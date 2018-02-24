@@ -14,6 +14,8 @@ project adheres to a scheme based on [Semantic Versioning] as follows:
 [Semantic Versioning]: http://semver.org/spec/v2.0.0.html
 
 ## [Unreleased]
+### Added
+- `Gopkg.toml` manifest for use with the `dep` tool
 
 ## [v0.1.0] - 2018-02-22
 ### Changed
