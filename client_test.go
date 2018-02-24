@@ -7,6 +7,16 @@ import (
 	"github.com/nlopes/slack"
 )
 
+func TestNewClientPanicsWithBlankToken(t *testing.T) {
+	defer func() {
+		if err := recover(); err != "slackio: Client requires a non-blank API token" {
+			t.Fatalf("unexpected NewClient error on blank token: %v", err)
+		}
+	}()
+
+	NewClient("")
+}
+
 func TestDistributeFiltering(t *testing.T) {
 	cases := []struct {
 		description string
