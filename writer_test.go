@@ -1,13 +1,14 @@
 package slackio
 
 import (
+	"errors"
 	"io"
 	"reflect"
 	"sync"
 	"testing"
 )
 
-func staticMockBatcher(r io.Reader) (<-chan string, <-chan error) {
+func mockStaticBatcher(r io.Reader) (<-chan string, <-chan error) {
 	outCh, errCh := make(chan string), make(chan error, 1)
 
 	var readBytes [8]byte
@@ -34,6 +35,20 @@ func staticMockBatcher(r io.Reader) (<-chan string, <-chan error) {
 	return outCh, errCh
 }
 
+func createMockErrBatcher(err error) Batcher {
+	return func(_ io.Reader) (<-chan string, <-chan error) {
+		outCh, errCh := make(chan string), make(chan error, 1)
+
+		go func() {
+			close(outCh)
+			errCh <- err
+			close(errCh)
+		}()
+
+		return outCh, errCh
+	}
+}
+
 type testWriteClient struct {
 	lastMessage Message
 
@@ -54,7 +69,7 @@ func (c *testWriteClient) wait() {
 
 func TestWriter(t *testing.T) {
 	client := &testWriteClient{}
-	w := NewWriter(client, "C12345678", staticMockBatcher)
+	w := NewWriter(client, "C12345678", mockStaticBatcher)
 
 	if _, err := w.Write([]byte("test")); err != nil {
 		t.Fatalf("unexpected Writer error: %q", err.Error())
@@ -92,5 +107,15 @@ func TestNewWriterSetsDefaultBatcher(t *testing.T) {
 
 	if w.batcher == nil {
 		t.Fatal("NewWriter did not set a default batcher")
+	}
+}
+
+func TestWriterCloseReturnsBatcherError(t *testing.T) {
+	berr := errors.New("mock Batcher error")
+	batcher := createMockErrBatcher(berr)
+
+	w := NewWriter(&testWriteClient{}, "C12345678", batcher)
+	if err := w.Close(); err != berr {
+		t.Fatalf("Writer returned unexpected error on Close: %q", err.Error())
 	}
 }

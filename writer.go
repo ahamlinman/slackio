@@ -20,6 +20,7 @@ type Writer struct {
 	wg        sync.WaitGroup
 	writeOut  io.ReadCloser
 	writeIn   io.WriteCloser
+	writeErr  error
 }
 
 // NewWriter returns a new Writer. channelID must be non-blank, or NewWriter
@@ -54,9 +55,7 @@ func NewWriter(client WriteClient, channelID string, batcher Batcher) *Writer {
 			})
 		}
 
-		if err := <-errCh; err != nil {
-			panic(err)
-		}
+		c.writeErr = <-errCh
 	}()
 
 	return c
@@ -73,5 +72,5 @@ func (c *Writer) Write(p []byte) (int, error) {
 func (c *Writer) Close() error {
 	c.writeIn.Close() // Always returns nil
 	c.wg.Wait()
-	return nil
+	return c.writeErr
 }
