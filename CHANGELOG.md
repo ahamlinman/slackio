@@ -17,6 +17,9 @@ project adheres to a scheme based on [Semantic Versioning] as follows:
 ### Changed
 - When Writer receives an error from its Batcher, it now returns the error on
   Close rather than panicking with it
+- When Client receives an authentication error from Slack, it now panics with
+  an error value rather than a string (note that this panic occurs in a
+  goroutine and is unrecoverable)
 
 ## [v0.1.1] - 2018-02-24
 ### Added

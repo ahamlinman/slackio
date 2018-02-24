@@ -67,7 +67,7 @@ func NewClient(apiToken string) *Client {
 			case evt := <-c.rtm.IncomingEvents:
 				switch data := evt.Data.(type) {
 				case *slack.InvalidAuthEvent:
-					panic("slackio: Slack API credentials are invalid")
+					panic(errors.New("slackio: Slack API credentials are invalid"))
 
 				case *slack.MessageEvent:
 					c.distribute(data)
