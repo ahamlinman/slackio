@@ -23,6 +23,18 @@ dependency.
 1. `git clone https://github.com/ahamlinman/slackio.git`
 1. `make test`, etc.
 
+## Example
+
+A small program is provided in the `example/` directory to demonstrate the
+capabilities of slackio. To use it, set the `SLACK_TOKEN` environment variable
+to a valid Slack API token. Then, run in one of two modes:
+
+* With `go run example/main.go`, the contents of all available channels are
+  streamed to standard output.
+* With `go run example/main.go <channel ID>`, the contents of a single channel
+  are streamed to standard output. Lines read from standard input are sent back
+  to the channel as messages.
+
 ## Status and Stability
 
 As of November 2017, the key desired functionalities of package slackio have

@@ -14,6 +14,9 @@ project adheres to a scheme based on [Semantic Versioning] as follows:
 [Semantic Versioning]: http://semver.org/spec/v2.0.0.html
 
 ## [Unreleased]
+### Added
+- Example program to demonstrate slackio usage (see README.md for details)
+
 ### Changed
 - When Writer receives an error from its Batcher, it now returns the error on
   Close rather than panicking with it
