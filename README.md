@@ -26,14 +26,9 @@ dependency.
 ## Example
 
 A small program is provided in the `example/` directory to demonstrate the
-capabilities of slackio. To use it, set the `SLACK_TOKEN` environment variable
-to a valid Slack API token. Then, run in one of two modes:
+capabilities of slackio. To learn more, see the [example GoDoc].
 
-* With `go run example/main.go`, the contents of all available channels are
-  streamed to standard output.
-* With `go run example/main.go <channel ID>`, the contents of a single channel
-  are streamed to standard output. Lines read from standard input are sent back
-  to the channel as messages.
+[example GoDoc]: https://godoc.org/github.com/ahamlinman/slackio/example
 
 ## Status and Stability
 
