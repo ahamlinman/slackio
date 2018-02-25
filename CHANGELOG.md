@@ -30,12 +30,11 @@ project adheres to a scheme based on [Semantic Versioning] as follows:
 ### Added
 - `Gopkg.toml` manifest for use with the `dep` tool
 
-## [v0.1.0] - 2018-02-22
+## v0.1.0 - 2018-02-22
 ### Changed
 - Initial split-out and versioned release of slackio as a separate package from
   the slackbridge CLI
 
 [Unreleased]: https://github.com/ahamlinman/slackio/compare/v0.1.2...HEAD
-[v0.1.2]: https://github.com/ahamlinman/slackio/tree/v0.1.2
-[v0.1.1]: https://github.com/ahamlinman/slackio/tree/v0.1.1
-[v0.1.0]: https://github.com/ahamlinman/slackio/tree/v0.1.0
+[v0.1.2]: https://github.com/ahamlinman/slackio/compare/v0.1.1...v0.1.2
+[v0.1.1]: https://github.com/ahamlinman/slackio/compare/v0.1.0...v0.1.1
