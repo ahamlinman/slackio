@@ -14,6 +14,8 @@ project adheres to a scheme based on [Semantic Versioning] as follows:
 [Semantic Versioning]: http://semver.org/spec/v2.0.0.html
 
 ## [Unreleased]
+
+## [v0.1.2] - 2018-02-24
 ### Added
 - Example program to demonstrate slackio usage (see README.md for details)
 
@@ -33,6 +35,7 @@ project adheres to a scheme based on [Semantic Versioning] as follows:
 - Initial split-out and versioned release of slackio as a separate package from
   the slackbridge CLI
 
-[Unreleased]: https://github.com/ahamlinman/slackio/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/ahamlinman/slackio/compare/v0.1.2...HEAD
+[v0.1.2]: https://github.com/ahamlinman/slackio/tree/v0.1.2
 [v0.1.1]: https://github.com/ahamlinman/slackio/tree/v0.1.1
 [v0.1.0]: https://github.com/ahamlinman/slackio/tree/v0.1.0
