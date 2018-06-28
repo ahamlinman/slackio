@@ -15,6 +15,14 @@ project adheres to a scheme based on [Semantic Versioning] as follows:
 
 ## [Unreleased]
 
+## [v0.1.3] - 2018-06-27
+### Changed
+- The example program's documentation is now in godoc comments (rather than the
+  README).
+- Gopkg.toml now tracks `master` of `github.com/nlopes/slack`, allowing
+  consumers to update that package without overriding (massively overbearing)
+  constraints from slackio.
+
 ## [v0.1.2] - 2018-02-24
 ### Added
 - Example program to demonstrate slackio usage (see README.md for details)
@@ -35,6 +43,7 @@ project adheres to a scheme based on [Semantic Versioning] as follows:
 - Initial split-out and versioned release of slackio as a separate package from
   the slackbridge CLI
 
-[Unreleased]: https://github.com/ahamlinman/slackio/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/ahamlinman/slackio/compare/v0.1.3...HEAD
+[v0.1.3]: https://github.com/ahamlinman/slackio/compare/v0.1.2...v0.1.3
 [v0.1.2]: https://github.com/ahamlinman/slackio/compare/v0.1.1...v0.1.2
 [v0.1.1]: https://github.com/ahamlinman/slackio/compare/v0.1.0...v0.1.1
