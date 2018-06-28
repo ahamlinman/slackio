@@ -24,15 +24,12 @@
 #   go-tests = true
 #   unused-packages = true
 
-# As of 2018-02-24, the latest semver release of this package contains a
+# As of 2018-06-27, the latest semver release of this package contains a
 # panic-inducing bug (https://github.com/nlopes/slack/issues/260) that is fixed
 # in the current master.
-#
-# This constraint should be revisited as soon as possible once a new semver
-# release is tagged.
 [[constraint]]
   name = "github.com/nlopes/slack"
-  revision = "1217b9d3e4304348a9be15c2afd80ad4691f31e5"
+  branch = "master"
 
 [prune]
   non-go = true
