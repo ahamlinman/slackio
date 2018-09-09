@@ -1,5 +1,3 @@
-github.com/ahamlinman/slackio v0.1.3 h1:8oGrhz8LxeL23JO9ZBRq11VDDflDql0rnUmWtjVMEDc=
-github.com/ahamlinman/slackio v0.1.3/go.mod h1:MxyX09oYkCuYUKw/bT1Fatc9NqEKvwCYi5YMaCKNU1c=
 github.com/gorilla/websocket v1.2.0 h1:VJtLvh6VQym50czpZzx07z/kw9EgAxI3x1ZB8taTMQQ=
 github.com/gorilla/websocket v1.2.0/go.mod h1:E7qHFY5m1UJ88s3WnNqhKjPHQ0heANvMoAMk2YaljkQ=
 github.com/nlopes/slack v0.0.0-20180224122029-1217b9d3e430 h1:ounChRNZ7kzCKlKlQ2DkxPPxAdiqwuYfskJwYKJd2is=

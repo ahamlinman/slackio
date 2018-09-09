@@ -31,7 +31,7 @@ import (
 	"io/ioutil"
 	"os"
 
-	"github.com/ahamlinman/slackio"
+	"go.alexhamlin.co/slackio"
 )
 
 func main() {
