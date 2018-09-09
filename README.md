@@ -1,6 +1,6 @@
 # slackio
 
-[![GoDoc](https://godoc.org/github.com/ahamlinman/slackio?status.svg)](https://godoc.org/github.com/ahamlinman/slackio)
+[![GoDoc](https://godoc.org/go.alexhamlin.co/slackio?status.svg)](https://godoc.org/go.alexhamlin.co/slackio)
 [![Build Status](https://travis-ci.org/ahamlinman/slackio.svg?branch=master)](https://travis-ci.org/ahamlinman/slackio)
 
 **slackio** implements real-time Slack communication behind Go's [io.Reader]
@@ -11,24 +11,26 @@ and [io.Writer] interfaces.
 
 ## Usage
 
-It is recommended that you manage your project's dependencies with [`dep`].
-This repository includes a manifest with tested versions of slackio's
-underlying dependencies, which `dep` will respect when including slackio as a
-dependency.
+Simply import the package as `go.alexhamlin.co/slackio`. See the linked GoDoc
+above for additional usage details.
 
-[`dep`]: https://github.com/golang/dep
+This project supports the (experimental) [Go modules] feature for dependency
+management. Using Go 1.11+ in module mode will help ensure that you are using
+supported versions of all dependencies.
 
-## Development
-
-1. `git clone https://github.com/ahamlinman/slackio.git`
-1. `make test`, etc.
+[Go modules]: https://github.com/golang/go/wiki/Modules
 
 ## Example
 
 A small program is provided in the `example/` directory to demonstrate the
 capabilities of slackio. To learn more, see the [example GoDoc].
 
-[example GoDoc]: https://godoc.org/github.com/ahamlinman/slackio/example
+[example GoDoc]: https://godoc.org/go.alexhamlin.co/slackio/example
+
+## Development
+
+1. `git clone https://github.com/ahamlinman/slackio.git`
+1. `make test`, etc.
 
 ## Status and Stability
 
