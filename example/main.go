@@ -23,7 +23,7 @@ The SLACK_TOKEN environment variable must be a valid Slack API token.
 Otherwise, example will panic.
 
 */
-package main
+package main // import "go.alexhamlin.co/slackio/example"
 
 import (
 	"fmt"
