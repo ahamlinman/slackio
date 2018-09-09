@@ -15,6 +15,18 @@ project adheres to a scheme based on [Semantic Versioning] as follows:
 
 ## [Unreleased]
 
+## [v0.2.0] - 2018-09-09
+### Changed
+- **BREAKING:** The canonical import path is now `go.alexhamlin.co/slackio`.
+  All uses of this package moving forward must use the new import path, rather
+  than `github.com/ahamlinman/slackio`.
+- Dependency management is now based on Go modules, rather than dep.
+  Previously, the dep manifest forced use of the `master` branch of
+  `github.com/nlopes/slack`, to ensure that certain critical bugfixes around
+  websockets were available. That project has since released a new tagged
+  version including those fixes, meaning that dep and similar tools should
+  select a "good" version without requiring a manifest here.
+
 ## [v0.1.3] - 2018-06-27
 ### Changed
 - The example program's documentation is now in godoc comments (rather than the
@@ -43,7 +55,8 @@ project adheres to a scheme based on [Semantic Versioning] as follows:
 - Initial split-out and versioned release of slackio as a separate package from
   the slackbridge CLI
 
-[Unreleased]: https://github.com/ahamlinman/slackio/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/ahamlinman/slackio/compare/v0.2.0...HEAD
+[v0.2.0]: https://github.com/ahamlinman/slackio/compare/v0.1.3...v0.2.0
 [v0.1.3]: https://github.com/ahamlinman/slackio/compare/v0.1.2...v0.1.3
 [v0.1.2]: https://github.com/ahamlinman/slackio/compare/v0.1.1...v0.1.2
 [v0.1.1]: https://github.com/ahamlinman/slackio/compare/v0.1.0...v0.1.1
