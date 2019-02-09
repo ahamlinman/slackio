@@ -14,6 +14,9 @@ project adheres to a scheme based on [Semantic Versioning] as follows:
 [Semantic Versioning]: http://semver.org/spec/v2.0.0.html
 
 ## [Unreleased]
+### Changed
+- Updated internal dependencies (e.g. `github.com/nlopes/slack`) to resolve
+  various potential bugs.
 
 ## [v0.2.0] - 2018-09-09
 ### Changed
