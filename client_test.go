@@ -100,19 +100,15 @@ func TestDistributeRollover(t *testing.T) {
 	}
 }
 
-func TestSubscriptionOperations(t *testing.T) {
-	// Yes, this test rolls up SubscribeAt, Subscribe, and Unsubscribe all into
-	// one case. This is done because the operations are all so interrelated, and
-	// it's faster for me to write. Might be worth refactoring later.
-
+func TestSubscribe(t *testing.T) {
 	c := initClient()
 	ch1, ch2 := make(chan Message), make(chan Message)
-	var subGroup errgroup.Group
 
-	// Notice that multiple subscription operations can run concurrently. This
-	// helps the race detector catch errors.
+	// Subscribe concurrently to help the race detector catch synchronization
+	// errors.
+	var group errgroup.Group
 
-	subGroup.Go(func() error {
+	group.Go(func() error {
 		if err := c.SubscribeAt(2, ch1); err != nil {
 			return errors.Wrap(err, "unexpected error on valid subscription")
 		}
@@ -124,7 +120,7 @@ func TestSubscriptionOperations(t *testing.T) {
 		return nil
 	})
 
-	subGroup.Go(func() error {
+	group.Go(func() error {
 		if err := c.Subscribe(ch2); err != nil {
 			return errors.Wrap(err, "unexpected error on valid subscription")
 		}
@@ -133,24 +129,35 @@ func TestSubscriptionOperations(t *testing.T) {
 			return errors.Errorf("unexpected result on duplicate subscription: %v", err)
 		}
 
-		// Be careful, we need to sync with the above goroutine!
-		c.subsLock.Lock()
-		defer c.subsLock.Unlock()
-
-		// Not going to claim this is clean, but I want to validate it somehow...
-		if c.subs[ch2].id != c.nextMessageID {
-			return errors.Errorf("unexpected default subscription ID %d", c.subs[ch2].id)
-		}
-
 		return nil
 	})
 
-	if err := subGroup.Wait(); err != nil {
+	if err := group.Wait(); err != nil {
 		t.Fatal(err)
+	}
+
+	if c.subs[ch2].id != c.nextMessageID {
+		t.Fatalf("unexpected default subscription ID %d (expected %d)",
+			c.subs[ch2].id, c.nextMessageID)
 	}
 
 	if len(c.subs) != 2 {
 		t.Fatalf("unexpected subscription pool length %d (expected 2)", len(c.subs))
+	}
+}
+
+func TestUnsubscribe(t *testing.T) {
+	c := initClient()
+
+	ch1, ch2 := make(chan Message), make(chan Message)
+	for _, ch := range []chan Message{ch1, ch2} {
+		if err := c.Subscribe(ch); err != nil {
+			t.Fatalf("unexpected subscribe error: %v", err)
+		}
+	}
+
+	if len(c.subs) == 0 {
+		t.Fatal("subscription pool empty")
 	}
 
 	unsub := func(ch chan Message) func() error {
@@ -159,17 +166,17 @@ func TestSubscriptionOperations(t *testing.T) {
 		}
 	}
 
-	// Again, notice the concurrency.
-
-	var unsubGroup errgroup.Group
-	unsubGroup.Go(unsub(ch1))
-	unsubGroup.Go(unsub(ch2))
-	if err := unsubGroup.Wait(); err != nil {
+	// Unsubscribe concurrently to help the race detector catch synchronization
+	// errors.
+	var group errgroup.Group
+	group.Go(unsub(ch1))
+	group.Go(unsub(ch2))
+	if err := group.Wait(); err != nil {
 		t.Fatal(err)
 	}
 
 	if err := c.Unsubscribe(ch1); err != ErrNotSubscribed {
-		t.Fatalf("unexpected duplicate unsubscribe error: %v", err)
+		t.Fatalf("unexpected duplicate unsubscribe result: %v", err)
 	}
 
 	if len(c.subs) != 0 {
