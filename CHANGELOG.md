@@ -14,6 +14,8 @@ project adheres to a scheme based on [Semantic Versioning] as follows:
 [Semantic Versioning]: http://semver.org/spec/v2.0.0.html
 
 ## [Unreleased]
+
+## [v0.2.1] - 2019-02-09
 ### Changed
 - Updated internal dependencies (e.g. `github.com/nlopes/slack`) to resolve
   various potential bugs.
@@ -58,7 +60,8 @@ project adheres to a scheme based on [Semantic Versioning] as follows:
 - Initial split-out and versioned release of slackio as a separate package from
   the slackbridge CLI
 
-[Unreleased]: https://github.com/ahamlinman/slackio/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/ahamlinman/slackio/compare/v0.2.1...HEAD
+[v0.2.1]: https://github.com/ahamlinman/slackio/compare/v0.2.0...v0.2.1
 [v0.2.0]: https://github.com/ahamlinman/slackio/compare/v0.1.3...v0.2.0
 [v0.1.3]: https://github.com/ahamlinman/slackio/compare/v0.1.2...v0.1.3
 [v0.1.2]: https://github.com/ahamlinman/slackio/compare/v0.1.1...v0.1.2
