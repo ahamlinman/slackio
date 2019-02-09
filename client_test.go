@@ -1,10 +1,11 @@
 package slackio
 
 import (
-	"sync"
 	"testing"
 
 	"github.com/nlopes/slack"
+	"github.com/pkg/errors"
+	"golang.org/x/sync/errgroup"
 )
 
 func TestNewClientPanicsWithBlankToken(t *testing.T) {
@@ -106,34 +107,30 @@ func TestSubscriptionOperations(t *testing.T) {
 
 	c := initClient()
 	ch1, ch2 := make(chan Message), make(chan Message)
-	var subWait sync.WaitGroup
+	var subGroup errgroup.Group
 
 	// Notice that multiple subscription operations can run concurrently. This
 	// helps the race detector catch errors.
 
-	subWait.Add(1)
-	go func() {
-		defer subWait.Done()
-
+	subGroup.Go(func() error {
 		if err := c.SubscribeAt(2, ch1); err != nil {
-			t.Fatalf("unexpected error on valid subscription: %s", err.Error())
+			return errors.Wrap(err, "unexpected error on valid subscription")
 		}
 
 		if err := c.SubscribeAt(3, ch1); err != ErrAlreadySubscribed {
-			t.Fatalf("unexpected error on duplicate subscription: %v", err)
+			return errors.Errorf("unexpected result on duplicate subscription: %v", err)
 		}
-	}()
 
-	subWait.Add(1)
-	go func() {
-		defer subWait.Done()
+		return nil
+	})
 
+	subGroup.Go(func() error {
 		if err := c.Subscribe(ch2); err != nil {
-			t.Fatalf("unexpected error on valid subscription: %s", err.Error())
+			return errors.Wrap(err, "unexpected error on valid subscription")
 		}
 
 		if err := c.Subscribe(ch2); err != ErrAlreadySubscribed {
-			t.Fatalf("unexpected error on duplicate subscription: %v", err)
+			return errors.Errorf("unexpected result on duplicate subscription: %v", err)
 		}
 
 		// Be careful, we need to sync with the above goroutine!
@@ -142,31 +139,34 @@ func TestSubscriptionOperations(t *testing.T) {
 
 		// Not going to claim this is clean, but I want to validate it somehow...
 		if c.subs[ch2].id != c.nextMessageID {
-			t.Fatalf("unexpected default subscription ID %d", c.subs[ch2].id)
+			return errors.Errorf("unexpected default subscription ID %d", c.subs[ch2].id)
 		}
-	}()
 
-	subWait.Wait()
+		return nil
+	})
+
+	if err := subGroup.Wait(); err != nil {
+		t.Fatal(err)
+	}
 
 	if len(c.subs) != 2 {
 		t.Fatalf("unexpected subscription pool length %d (expected 2)", len(c.subs))
 	}
 
-	var unsubWait sync.WaitGroup
-	unsub := func(ch chan Message) {
-		defer unsubWait.Done()
-
-		if err := c.Unsubscribe(ch); err != nil {
-			t.Fatalf("unexpected unsubscribe error: %s", err.Error())
+	unsub := func(ch chan Message) func() error {
+		return func() error {
+			return errors.Wrap(c.Unsubscribe(ch), "unexpected unsubscribe error")
 		}
 	}
 
 	// Again, notice the concurrency.
 
-	unsubWait.Add(2)
-	go unsub(ch1)
-	go unsub(ch2)
-	unsubWait.Wait()
+	var unsubGroup errgroup.Group
+	unsubGroup.Go(unsub(ch1))
+	unsubGroup.Go(unsub(ch2))
+	if err := unsubGroup.Wait(); err != nil {
+		t.Fatal(err)
+	}
 
 	if err := c.Unsubscribe(ch1); err != ErrNotSubscribed {
 		t.Fatalf("unexpected duplicate unsubscribe error: %v", err)
