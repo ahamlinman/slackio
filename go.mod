@@ -1,5 +1,7 @@
 module go.alexhamlin.co/slackio
 
+go 1.13
+
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/gorilla/websocket v1.4.0 // indirect
